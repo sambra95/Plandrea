@@ -490,11 +490,14 @@ def _add_dated(title: str, day: date | None, kind: str) -> int | None:
 
 def _of_kind(kind: str, first: date, last: date) -> pd.DataFrame:
     """One kind filed against a day in the range, earliest first: under the day
-    it was finished, or the day it is set for. Undated ones are not here."""
+    it was finished, or the day it is set for. Undated ones are not here.
+    Within a day, those with a start time come first in time order (HH:MM
+    sorts as text), then the rest as they were added."""
     return _read(_ITEMS
                  + "WHERE t.kind = :kind "
                  "AND COALESCE(t.done_on, t.day) BETWEEN :first AND :last "
-                 "ORDER BY COALESCE(t.done_on, t.day), t.id",
+                 "ORDER BY COALESCE(t.done_on, t.day), "
+                 "t.start_time IS NULL, t.start_time, t.id",
                  kind=kind, first=first.isoformat(), last=last.isoformat())
 
 
