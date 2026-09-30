@@ -11,7 +11,7 @@ import streamlit as st
 
 import daycard
 import db
-from palette import chip_css, style_block
+from palette import LEGACY, chip_css, style_block, wash
 
 #: The kinds a project can hold, each with what finishing one is called: a
 #: paper is read, the rest are completed.
@@ -20,6 +20,13 @@ KINDS = ((db.TASK, "Tasks", "completed"), (db.MEETING, "Meetings", "completed"),
 
 #: What finishing one of each kind is called, for a row's status.
 FINISHED = {kind: verb for kind, _label, verb in KINDS}
+
+#: The table's filters, one pill each.
+SHOWN = ("Open tasks", "Completed tasks", "Meetings", "Papers")
+
+#: A row's fill in the table: finished ones green, open ones red.
+DONE_FILL = f"background-color: {wash(LEGACY['green'])}"
+OPEN_FILL = f"background-color: {wash(LEGACY['red'])}"
 
 
 def _rename(prefix: str, project_id: int) -> None:
@@ -54,10 +61,24 @@ def _belongings(project, items: pd.DataFrame, prefix: str):
         st.caption("Nothing assigned yet.")
         return None
 
-    term = st.text_input(
-        "Search", key=f"{prefix}search:{project.id}", label_visibility="collapsed",
-        placeholder="Search this project's tasks, meetings and papers…")
-    found = items
+    # The search box takes what the filters beside it leave. They say which
+    # rows to show, all of them to begin with: tasks split on whether they are
+    # finished, meetings and papers come whole.
+    with st.container(horizontal=True, vertical_alignment="center"):
+        term = st.text_input(
+            "Search", key=f"{prefix}search:{project.id}",
+            label_visibility="collapsed", width="stretch",
+            placeholder="Search this project's tasks, meetings and papers…")
+        showing = st.pills("Show", SHOWN, selection_mode="multi",
+                           default=SHOWN, key=f"{prefix}show:{project.id}",
+                           label_visibility="collapsed", width="content")
+    shown = {name: name in showing for name in SHOWN}
+    task = items["kind"] == db.TASK
+    finished = items["done_on"].notna()
+    found = items[(task & ~finished & shown["Open tasks"])
+                  | (task & finished & shown["Completed tasks"])
+                  | ((items["kind"] == db.MEETING) & shown["Meetings"])
+                  | ((items["kind"] == db.PAPER) & shown["Papers"])]
     if term:
         found = found[found["haystack"].str.contains(term.strip().lower(),
                                                      regex=False, na=False)]
@@ -65,15 +86,17 @@ def _belongings(project, items: pd.DataFrame, prefix: str):
         st.caption("Nothing matching.")
         return None
 
+    table = pd.DataFrame({
+        "Kind": found["kind"].str.capitalize(),
+        "Item": found["title"],
+        "Day": found["on_day"],
+        "Status": [FINISHED[kind].capitalize() if pd.notna(done) else "Open"
+                   for kind, done in zip(found["kind"], found["done_on"])],
+        "Notes": found["notes"].fillna(""),
+    })
     picked = st.dataframe(
-        pd.DataFrame({
-            "Kind": found["kind"].str.capitalize(),
-            "Item": found["title"],
-            "Day": found["on_day"],
-            "Status": [FINISHED[kind].capitalize() if pd.notna(done) else "Open"
-                       for kind, done in zip(found["kind"], found["done_on"])],
-            "Notes": found["notes"].fillna(""),
-        }),
+        table.style.apply(lambda row: [OPEN_FILL if row["Status"] == "Open"
+                                       else DONE_FILL] * len(row), axis=1),
         hide_index=True, width="stretch", height=200,
         key=f"{prefix}hits:{project.id}", on_select="rerun",
         selection_mode="single-row",
@@ -113,7 +136,8 @@ def _actions(project, prefix: str) -> None:
     row = st.columns(2)
     # Archiving takes the colour off everything assigned to it, so it asks
     # first, the way calling off a meeting does.
-    with row[0].popover("Archive this project", icon=":material/archive:"):
+    with row[0].popover("Archive this project", icon=":material/archive:",
+                        width="stretch"):
         st.markdown(f"**Archive {project.name}?**")
         st.caption("It and everything assigned to it turn grey, and its colour "
                    "goes back into circulation. It moves to the Archive page, "
@@ -123,7 +147,8 @@ def _actions(project, prefix: str) -> None:
             db.archive_project(project.id)
             st.rerun(scope="app")
     # Deleting cannot be undone, so it asks first the way archiving does.
-    with row[1].popover("Delete this project", icon=":material/delete:"):
+    with row[1].popover("Delete this project", icon=":material/delete:",
+                        width="stretch"):
         st.markdown(f"**Delete {project.name}?**")
         st.caption("Everything assigned to it is kept and simply shows as "
                    "having no project, and its colour goes back into "

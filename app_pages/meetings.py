@@ -9,7 +9,8 @@ import streamlit as st
 
 import daycard
 import db
-from palette import NO_PROJECT, chip_css, holiday_css, style_block, wash
+from palette import (NO_PROJECT, chip_css, css_class, holiday_css,
+                     style_block, wash)
 from worktime import is_holiday, when
 
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -17,6 +18,18 @@ WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 #: A fixed height, so the grid reads as a calendar whatever a day holds; what
 #: does not fit is reached by scrolling it, hence the badge with its total.
 CELL_HEIGHT = 120
+
+#: The month steps and title, sized as My Week sizes its week steps and title,
+#: so the two pages move the same way.
+STEP_WIDTH = 200
+LABEL_SIZE = "2.25rem"
+ROW_HEIGHT = "3.5rem"
+
+MONTH_ROW_CSS = f"""<style>
+.{css_class("month_back")} button, .{css_class("month_on")} button,
+.{css_class("month_now")} button {{ height: {ROW_HEIGHT}; }}
+.{css_class("month_now")} button p {{ font-size: {LABEL_SIZE}; }}
+</style>"""
 
 
 def _first_of_month(day: date) -> date:
@@ -36,11 +49,16 @@ def _this_month() -> None:
 
 st.session_state.setdefault("month_start", _first_of_month(date.today()))
 
+# A step either side of the month's name, as My Week lays out its weeks. The
+# name is the way back to this month.
+st.html(MONTH_ROW_CSS)
 with st.container(horizontal=True, vertical_alignment="center"):
-    st.button("Previous", icon=":material/chevron_left:", on_click=_shift, args=(-1,))
-    st.button("Next", icon=":material/chevron_right:", on_click=_shift, args=(1,))
-    st.button("This month", on_click=_this_month)
-    st.markdown(f"**{st.session_state.month_start:%B %Y}**")
+    st.button("", icon=":material/chevron_left:", key="month_back",
+              width=STEP_WIDTH, on_click=_shift, args=(-1,))
+    st.button(f"{st.session_state.month_start:%B %Y}", key="month_now",
+              width="stretch", help="Back to this month", on_click=_this_month)
+    st.button("", icon=":material/chevron_right:", key="month_on",
+              width=STEP_WIDTH, on_click=_shift, args=(1,))
 
 month_start = st.session_state.month_start
 

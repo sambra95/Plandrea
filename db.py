@@ -414,12 +414,19 @@ def item(task_id: int):
     return next(_read(_ITEMS + "WHERE t.id = :id", id=task_id).itertuples(), None)
 
 
+#: Items grouped by project, in the order the projects page lists them, with
+#: those under no project last.
+_BY_PROJECT = "p.id IS NULL, p.archived, p.id"
+
+
 def open_tasks() -> pd.DataFrame:
-    """Every task still to do, newest first. Meetings and papers live on their
-    own pages and are not here."""
+    """Every task still to do, grouped by project, those already given a day
+    last within their project, then newest first. Meetings and papers live on
+    their own pages and are not here."""
     return _read(_ITEMS
                  + "WHERE t.done_on IS NULL AND t.kind = :kind "
-                   "ORDER BY t.id DESC", kind=TASK)
+                   "ORDER BY " + _BY_PROJECT + ", t.day IS NOT NULL, t.id DESC",
+                 kind=TASK)
 
 
 def add_task(title: str) -> int | None:
@@ -498,10 +505,10 @@ def add_paper(title: str, day: date | None = None) -> int | None:
 
 
 def unread_papers() -> pd.DataFrame:
-    """Papers still to read, most recently added first."""
+    """Papers still to read, grouped by project."""
     return _read(_ITEMS
                  + "WHERE t.done_on IS NULL AND t.kind = :kind "
-                   "ORDER BY t.id DESC", kind=PAPER)
+                   "ORDER BY " + _BY_PROJECT + ", t.id DESC", kind=PAPER)
 
 
 def papers_read(query: str = "") -> pd.DataFrame:

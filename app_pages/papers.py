@@ -33,12 +33,10 @@ if papers.empty:
     st.caption("Nothing to read.")
 
 for paper in papers.itertuples():
-    day = "" if pd.isna(paper.day) else f" · {paper.day:%a %d %b}"
-    tags = "" if pd.isna(paper.tags) else f" · {paper.tags}"
     rules.append(chip_css(f"papers:open:{paper.id}", paper.colour))
 
     line = st.columns([8, 0.4, 1.3, 0.5], vertical_alignment="center")
-    if line[0].button(f"{strike(paper.title, False)}{day}{tags}",
+    if line[0].button(strike(paper.title, False),
                       key=f"papers:open:{paper.id}", width="stretch"):
         opened = paper
     line[1].checkbox("Read", value=False, key=f"paper_read:{paper.id}",
