@@ -9,7 +9,7 @@ import streamlit as st
 
 import daycard
 import db
-from palette import NO_PROJECT, chip_css, strike, style_block
+from palette import NO_PROJECT, chip_css, chip_date_css, strike, style_block
 
 today = date.today()
 
@@ -34,11 +34,12 @@ if tasks.empty:
 for task in tasks.itertuples():
     own = milestones[milestones["task_id"] == task.id]
     tally = f" ({int(own['done'].sum())}/{len(own)})" if len(own) else ""
-    day = "" if pd.isna(task.day) else f" · {task.day:%a %d %b}"
     rules.append(chip_css(f"tasks:open:{task.id}", task.colour))
+    if not pd.isna(task.day):
+        rules.append(chip_date_css(f"tasks:open:{task.id}", task.day))
 
     line = st.columns([8, 0.4, 1.3, 0.5], vertical_alignment="center")
-    if line[0].button(f"{strike(task.title, False)}{tally}{day}",
+    if line[0].button(f"{strike(task.title, False)}{tally}",
                       key=f"tasks:open:{task.id}", width="stretch"):
         opened = task
     line[1].checkbox("Done", value=False, key=f"done:{task.id}",

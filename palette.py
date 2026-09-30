@@ -233,6 +233,18 @@ def chip_css(key: str, colour) -> str:
             f'color: {tint} !important; border-color: transparent !important; }}')
 
 
+def chip_date_css(key: str, day) -> str:
+    """CSS setting a chip's day at its far right. A button's label is markdown
+    and cannot hold a second, right-aligned element, so the button draws the
+    day itself; an unseen copy at the far left keeps the title centred and
+    stops a long one running under the day."""
+    chip = f".{css_class(key)} button"
+    return (f'{chip} {{ justify-content: space-between; gap: 0.75rem; }} '
+            f'{chip}::before, {chip}::after {{ content: "{day:%a %d %b}"; '
+            f'flex: none; }} '
+            f'{chip}::before {{ visibility: hidden; }}')
+
+
 def label(title: str, name, colour, done: bool = False) -> str:
     """A task's title behind its project chip. Only the title is struck: the
     chip is a colour directive and tildes would stop it rendering."""

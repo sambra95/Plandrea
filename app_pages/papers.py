@@ -9,7 +9,7 @@ import streamlit as st
 
 import daycard
 import db
-from palette import NO_PROJECT, chip_css, strike, style_block
+from palette import NO_PROJECT, chip_css, chip_date_css, strike, style_block
 
 
 today = date.today()
@@ -34,6 +34,8 @@ if papers.empty:
 
 for paper in papers.itertuples():
     rules.append(chip_css(f"papers:open:{paper.id}", paper.colour))
+    if not pd.isna(paper.day):
+        rules.append(chip_date_css(f"papers:open:{paper.id}", paper.day))
 
     line = st.columns([8, 0.4, 1.3, 0.5], vertical_alignment="center")
     if line[0].button(strike(paper.title, False),
