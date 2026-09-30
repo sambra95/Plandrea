@@ -13,7 +13,8 @@ import pandas as pd
 import streamlit as st
 
 import db
-from palette import NO_PROJECT, chip_css, select_css, strike, style_block
+from palette import (NO_PROJECT, chip_css, done_css, select_css, strike,
+                     style_block)
 from worktime import (DEFAULT_END, DEFAULT_START, clock, default_break,
                       WEEK_DAYS, field, is_holiday, net, or_default,
                       span, when)
@@ -96,11 +97,19 @@ def _add_milestone(prefix: str, task_id: int) -> None:
     st.session_state[f"{prefix}dnewmilestone:{task_id}"] = ""
 
 
+def _rename_milestone(key: str, milestone_id: int) -> None:
+    db.rename_milestone(milestone_id, st.session_state[key])
+
+
 #: How many milestones a card shows before the list starts scrolling, and what
 #: one row of it stands. The height is a little over the rows shown, so the next
 #: one peeks out and says there is more below.
 _MILESTONES_SHOWN = 5
 _MILESTONE_ROW = 42
+
+#: The room a milestone's "Completed" badge is given, in pixels, whether or not
+#: it has one: a little over the widest date, so the badge never wraps.
+_BADGE_WIDTH = 220
 
 
 def _done_badge(done_on, verb: str = "Completed") -> str:
@@ -231,19 +240,34 @@ def _editor(item, prefix: str, names: list[str], day: date) -> None:
         # Read again here: a dialog is a fragment, handed its arguments back on
         # every rerun, so a frame passed in never changes.
         own = db.task_milestones(item.id)
+        finished = []
         with _milestone_box(len(own)):
             for milestone in own.itertuples():
-                row = st.columns([9, 0.6], vertical_alignment="center")
-                stamp = ("" if pd.isna(milestone.done_on) else
-                         " " + _done_badge(milestone.done_on))
-                key = f"{prefix}dmilestone:{milestone.id}"
-                row[0].checkbox(strike(milestone.title, bool(milestone.done))
-                                + stamp, value=bool(milestone.done), key=key,
+                # The name is typed over in place, as a task's title is.
+                with st.container(horizontal=True, vertical_alignment="center"):
+                    key = f"{prefix}dmilestone:{milestone.id}"
+                    st.checkbox("Done", value=bool(milestone.done), key=key,
+                                label_visibility="collapsed",
                                 on_change=_toggle_milestone,
                                 args=(key, milestone.id, day))
-                row[1].button("", icon=":material/close:",
+                    name = f"{prefix}dnamemilestone:{milestone.id}"
+                    st.text_input("Milestone", value=milestone.title, key=name,
+                                  label_visibility="collapsed", width="stretch",
+                                  on_change=_rename_milestone,
+                                  args=(name, milestone.id))
+                    # Open ones leave the badge's room empty, so every name
+                    # box ends in the same place.
+                    done = pd.notna(milestone.done_on)
+                    st.markdown(_done_badge(milestone.done_on) if done else "",
+                                width=_BADGE_WIDTH)
+                    if done:
+                        finished.append(done_css(name))
+                    st.button("", icon=":material/close:",
                               key=f"{prefix}ddropmilestone:{milestone.id}",
                               on_click=db.delete_milestone, args=(milestone.id,))
+        # A finished milestone's name sits on green.
+        if finished:
+            st.html(style_block(finished))
         st.text_input("New milestone", key=f"{prefix}dnewmilestone:{item.id}",
                       placeholder="Add a milestone…",
                       label_visibility="collapsed",
@@ -400,7 +424,7 @@ def _new(kind: str, names: list[str], day: date | None) -> None:
         drafted = st.session_state.setdefault(key + "milestones", [])
         with _milestone_box(len(drafted)):
             for index, milestone in enumerate(drafted):
-                row = st.columns([9, 0.6], vertical_alignment="center")
+                row = st.columns([9, 0.6, 0.6], vertical_alignment="center")
                 row[0].markdown(milestone)
                 row[1].button("", icon=":material/close:",
                               key=f"{key}dropmilestone:{index}",

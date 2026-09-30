@@ -249,6 +249,13 @@ def select_css(key: str, colour) -> str:
             f'color: {tint} !important; border-color: transparent !important; }}')
 
 
+def done_css(key: str) -> str:
+    """CSS washing one `st.text_input(key=...)` green, for something finished
+    whose name is still there to edit."""
+    return (f'.{css_class(key)} [data-testid="stTextInputRootElement"] {{ '
+            f'background-color: {wash(LEGACY["green"])} !important; }}')
+
+
 def holiday_css(key: str) -> str:
     """CSS marking one keyed container as a day off: the holiday colour washed
     over the whole cell, with its border picked out in the same colour so the

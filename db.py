@@ -816,6 +816,13 @@ def add_milestone(task_id: int, title: str) -> None:
                "VALUES (:task_id, :title)", task_id=task_id, title=title)
 
 
+def rename_milestone(milestone_id: int, title: str) -> None:
+    """Retitle a milestone. A blank title leaves it as it was."""
+    if title := title.strip():
+        _write("UPDATE milestones SET title = :title WHERE id = :id",
+               id=milestone_id, title=title)
+
+
 def delete_milestone(milestone_id: int) -> None:
     _write("DELETE FROM milestones WHERE id = :id", id=milestone_id)
 
