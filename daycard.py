@@ -207,8 +207,13 @@ def _editor(item, prefix: str, names: list[str], day: date) -> None:
     st.session_state["open_item"] = item.id
     # Laid out as the empty editor a new one is made in: the title on its own,
     # then project and day, and for a meeting the hours beside them.
-    st.text_input("Title", value=item.title, key=f"{prefix}dtitle:{item.id}",
-                  on_change=_rename, args=(prefix, item.id))
+    # The ID to the right, centred on the box rather than on box and label.
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        st.text_input("Title", value=item.title, key=f"{prefix}dtitle:{item.id}",
+                      on_change=_rename, args=(prefix, item.id))
+        with st.container(height=40, width="content", border=False,
+                          vertical_alignment="center"):
+            st.markdown(f":gray-badge[{item.code}]")
     if item.kind == db.MEETING:
         filed, dated, from_at, to_at = st.columns([3, 1, 1, 1])
     else:

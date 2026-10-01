@@ -87,6 +87,7 @@ def _belongings(project, items: pd.DataFrame, prefix: str):
         return None
 
     table = pd.DataFrame({
+        "ID": found["code"],
         "Kind": found["kind"].str.capitalize(),
         "Item": found["title"],
         "Day": found["on_day"],
@@ -166,8 +167,14 @@ def _open(project, prefix: str) -> None:
     on its own, then the dates, then what it holds."""
     if project.archived:
         st.markdown(":gray-badge[Archived]")
-    st.text_input("Project", value=project.name, key=f"{prefix}name:{project.id}",
-                  on_change=_rename, args=(prefix, project.id))
+    # The ID to the right, centred on the box rather than on box and label.
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        st.text_input("Project", value=project.name,
+                      key=f"{prefix}name:{project.id}",
+                      on_change=_rename, args=(prefix, project.id))
+        with st.container(height=40, width="content", border=False,
+                          vertical_alignment="center"):
+            st.markdown(f":gray-badge[{project.code}]")
 
     # Either end may be left open, so both boxes start empty.
     span = st.columns(2)
@@ -198,6 +205,12 @@ def _open(project, prefix: str) -> None:
         st.rerun(scope="app")
 
     _actions(project, prefix)
+
+
+def open_project(project_id: int, prefix: str) -> None:
+    """One project's card, opened from somewhere that has only its id."""
+    projects = db.projects()
+    _open(next(projects[projects["id"] == project_id].itertuples()), prefix)
 
 
 def chips(projects: pd.DataFrame, prefix: str, names: list[str]) -> None:

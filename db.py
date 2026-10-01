@@ -54,12 +54,37 @@ _ADDED_COLUMNS = {
               "kind": "TEXT NOT NULL DEFAULT 'task'", "notes": "TEXT",
               "goals": "TEXT", "actions": "TEXT",
               "start_time": "TEXT", "end_time": "TEXT", "tags": "TEXT",
-              "link": "TEXT"},
+              "link": "TEXT", "code": "TEXT"},
     "days": {"holiday": "INTEGER NOT NULL DEFAULT 0"},
     "milestones": {"done_on": "DATE"},
     "projects": {"archived": "INTEGER NOT NULL DEFAULT 0",
-                 "start_on": "DATE", "end_on": "DATE"},
+                 "start_on": "DATE", "end_on": "DATE", "code": "TEXT"},
 }
+
+#: Five characters of Crockford's base32, which has no I, L, O or U to be
+#: misread. SQL, so a code is drawn wherever a row is made, a merge included.
+_RANDOM_CODE = " || ".join(
+    ["substr('0123456789ABCDEFGHJKMNPQRSTVWXYZ', 1 + abs(random() % 32), 1)"] * 5)
+
+#: Each item's and project's code: a letter for what it is, then the random
+#: five. The kind never changes, so neither does the letter.
+_CODE_PREFIX = {"tasks": (f"CASE kind WHEN '{MEETING}' THEN 'M' "
+                          f"WHEN '{PAPER}' THEN 'P' ELSE 'T' END"),
+                "projects": "'J'"}
+
+#: Run after the columns are in place, since they name the code column. Each is
+#: one statement: a trigger holds semicolons, so these cannot go in _SCHEMA.
+_CODES = [statement
+          for table, prefix in _CODE_PREFIX.items()
+          for statement in (
+              f"UPDATE {table} SET code = {prefix} || '-' || {_RANDOM_CODE} "
+              "WHERE code IS NULL",
+              f"CREATE UNIQUE INDEX IF NOT EXISTS {table}_by_code "
+              f"ON {table}(code)",
+              f"CREATE TRIGGER IF NOT EXISTS {table}_code "
+              f"AFTER INSERT ON {table} WHEN NEW.code IS NULL BEGIN "
+              f"UPDATE {table} SET code = {prefix} || '-' || {_RANDOM_CODE} "
+              "WHERE id = NEW.id; END")]
 
 #: Every item query joins a row to its project; they share the wording.
 _FROM_TASKS = " FROM tasks t LEFT JOIN projects p ON p.id = t.project_id "
@@ -74,15 +99,16 @@ _MILESTONE_COUNTS = (
 #: Everything an item's card and editor read, whatever kind the item is. One
 #: list, so a task, meeting or paper arrives in the same shape wherever it is
 #: read and the editor can open any of them.
-_ITEM_COLUMNS = ("SELECT t.id, t.title, t.day, t.done_on, t.kind, t.description, "
-                 "t.goals, t.notes, t.actions, t.tags, t.link, "
+_ITEM_COLUMNS = ("SELECT t.id, t.code, t.title, t.day, t.done_on, t.kind, "
+                 "t.description, t.goals, t.notes, t.actions, t.tags, t.link, "
                  "t.start_time, t.end_time, "
                  "COALESCE(t.done_on, t.day) AS on_day, "
                  "p.name AS project, p.colour AS colour, " + _MILESTONE_COUNTS)
 
 #: What a project's search box matches on, lowered here so the box can filter
 #: its own rows without going back to the database.
-_HAYSTACK = (", LOWER(t.title || ' ' || COALESCE(t.description, '') || ' ' "
+_HAYSTACK = (", LOWER(t.code || ' ' || t.title || ' ' "
+             "|| COALESCE(t.description, '') || ' ' "
              "|| COALESCE(t.notes, '') || ' ' || COALESCE(t.tags, '')) AS haystack")
 
 #: The opening of every query that returns items.
@@ -169,7 +195,8 @@ def _rename_tables(connection) -> None:
 #: Everything deciding what the database should look like. _create_tables takes
 #: it only as a cache key: Streamlit keys on the function's own source, so a
 #: session reloaded under a new migration would never run it.
-_SHAPE = str((_SCHEMA, _RENAMED_TABLES, _RENAMED_COLUMNS, _ADDED_COLUMNS))
+_SHAPE = str((_SCHEMA, _RENAMED_TABLES, _RENAMED_COLUMNS, _ADDED_COLUMNS,
+              _CODES))
 
 
 @st.cache_resource(show_spinner=False)
@@ -232,6 +259,11 @@ def _catch_up(connection) -> None:
                 "  DATE('now')) WHERE done = 1 AND done_on IS NULL"))
             session.execute(text("ALTER TABLE milestones DROP COLUMN done"))
             session.commit()
+
+    with connection.session as session:
+        for statement in _CODES:
+            session.execute(text(statement))
+        session.commit()
 
     _unique_colours(connection)
 
@@ -331,8 +363,11 @@ _SAME_ITEM = ("t.kind = b.kind AND t.title = b.title "
 #: Added on a merge, in order: a task needs its project, a milestone its task.
 _MERGES = (
     ("projects", """
-        INSERT INTO projects (name, description, colour, archived)
-        SELECT b.name, b.description, b.colour, b.archived FROM backup.projects b
+        INSERT INTO projects (name, description, colour, archived, code)
+        SELECT b.name, b.description, b.colour, b.archived,
+               NULLIF(b.code, (SELECT p.code FROM main.projects p
+                               WHERE p.code = b.code))
+        FROM backup.projects b
         WHERE NOT EXISTS (SELECT 1 FROM main.projects p WHERE p.name = b.name)"""),
     ("days", """
         INSERT INTO days (day, start_time, end_time, break_hours, comment, holiday)
@@ -351,12 +386,15 @@ _MERGES = (
                             AND r.question = b.question)"""),
     ("tasks", f"""
         INSERT INTO tasks (title, day, done_on, created_on, project_id, description,
-                           kind, goals, notes, actions, start_time, end_time)
+                           kind, goals, notes, actions, start_time, end_time,
+                           code)
         SELECT b.title, b.day, b.done_on, b.created_on,
                (SELECT p.id FROM main.projects p JOIN backup.projects bp
                  ON bp.name = p.name WHERE bp.id = b.project_id),
                b.description, b.kind, b.goals, b.notes, b.actions,
-               b.start_time, b.end_time
+               b.start_time, b.end_time,
+               NULLIF(b.code, (SELECT t.code FROM main.tasks t
+                               WHERE t.code = b.code))
         FROM backup.tasks b
         WHERE NOT EXISTS (SELECT 1 FROM main.tasks t WHERE {_SAME_ITEM})"""),
     ("milestones", f"""
@@ -384,6 +422,13 @@ def merge(data: bytes) -> dict[str, int]:
             # A history saved before settings existed has none to offer.
             present = {row[0] for row in connection.execute(
                 "SELECT name FROM backup.sqlite_master WHERE type = 'table'")}
+            # Nor codes, if older still. The backup is a copy made for this
+            # merge, so giving it the column alters nothing of yours.
+            for table in _CODE_PREFIX:
+                if "code" not in {row[1] for row in connection.execute(
+                        f"PRAGMA backup.table_info({table})")}:
+                    connection.execute(
+                        f"ALTER TABLE backup.{table} ADD COLUMN code TEXT")
             with connection:                      # one transaction, or none of it
                 for table, statement in _MERGES:
                     if table not in present:
@@ -686,8 +731,8 @@ def project_items(project_id: int) -> pd.DataFrame:
 def projects() -> pd.DataFrame:
     """Every project, live ones first. Archived ones stay so anything assigned
     to them still shows a name; they are grey and sorted last."""
-    return _read("SELECT id, name, description, colour, archived, start_on, "
-                 "end_on FROM projects ORDER BY archived, id")
+    return _read("SELECT id, code, name, description, colour, archived, "
+                 "start_on, end_on FROM projects ORDER BY archived, id")
 
 
 def set_project_dates(project_id: int, start: date | None,
@@ -900,6 +945,42 @@ REVIEW_QUESTIONS = [
     "What blocked me?",
     "What did I learn this week?",
 ]
+
+
+# --- Search -----------------------------------------------------------------
+
+#: Everything there is to search, one row each: what it is, the id that opens
+#: it, its ID, what it is called, the day it is filed on, when it was finished,
+#: and the text a match is looked for in. Days and reviews have no card, so no id or ID.
+_EVERYTHING = """
+    SELECT t.kind AS kind, t.id AS ref, t.code AS code, t.title AS title,
+           COALESCE(t.done_on, t.day) AS on_day, t.done_on AS done_on,
+           CONCAT_WS(' · ', t.description, t.goals, t.notes, t.actions, t.tags,
+                     t.link, p.name,
+                     (SELECT GROUP_CONCAT(m.title, ' · ') FROM milestones m
+                      WHERE m.task_id = t.id)) AS body
+    FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
+    UNION ALL
+    SELECT 'project', id, code, name, start_on, NULL, description
+    FROM projects
+    UNION ALL
+    SELECT 'day', NULL, NULL, 'Day note', day, NULL, comment FROM days
+    WHERE comment IS NOT NULL
+    UNION ALL
+    SELECT 'review', NULL, NULL, question, week_start, NULL, answer
+    FROM reviews
+    WHERE answer IS NOT NULL AND answer <> ''
+"""
+
+
+def search(query: str) -> pd.DataFrame:
+    """Whatever holds `query` in its ID, its name or any of its text, newest
+    first, with what is undated last."""
+    return _read("SELECT * FROM (" + _EVERYTHING + ") WHERE "
+                 "LOWER(COALESCE(code, '') || ' ' || title || ' ' "
+                 "|| COALESCE(body, '')) LIKE :like "
+                 "ORDER BY on_day DESC, kind, title",
+                 like=f"%{query.strip().lower()}%")
 
 
 # --- Settings ---------------------------------------------------------------
