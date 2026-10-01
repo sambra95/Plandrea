@@ -1,6 +1,6 @@
 """Projects: a name, whatever is worth noting, dates and a colour of its own.
 One chip each, as a task or a meeting is, opening the project's own card.
-Archived ones live in the Archive."""
+Archived ones live on Settings."""
 
 import streamlit as st
 

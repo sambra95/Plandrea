@@ -56,8 +56,9 @@ tab.
   searchable table of the lot. Its colour is handed out automatically and never
   repeated. Archive one to retire it: it and everything assigned to it turn
   grey, and its colour returns to circulation.
-- **Archive** - the projects retired, each still opening its own card, with what
-  it held and the way back, and the history itself to back up or restore.
+- **Settings** - the hours a week owes, the projects retired, each still opening
+  its own card, with what it held and the way back, and the history itself to
+  back up or restore. The hours are saved in the backup too.
   A week is opened and reviewed on My Week, which any of them can be picked on.
 
 Nothing is ever deleted behind your back: a finished item is filed under the day

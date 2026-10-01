@@ -23,7 +23,7 @@ page = st.navigation([
     st.Page("app_pages/meetings.py", title="Meetings", icon=":material/groups:"),
     st.Page("app_pages/papers.py", title="Papers", icon=":material/menu_book:"),
     st.Page("app_pages/projects.py", title="Projects", icon=":material/folder:"),
-    st.Page("app_pages/archive.py", title="Archive", icon=":material/inventory_2:"),
+    st.Page("app_pages/settings.py", title="Settings", icon=":material/settings:"),
 ], position="top")
 
 # A task or meeting settles onto its own day once that day is over.

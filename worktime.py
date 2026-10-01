@@ -6,11 +6,19 @@ from datetime import date, datetime, time, timedelta
 
 import pandas as pd
 
+import db
+
 #: A contracted day and week. Overtime is measured against the week, not
-#: against the days you filled in.
+#: against the days you filled in. The week can be changed on Settings.
 STANDARD_DAY = 7.4
 WEEK_DAYS = 5
 WEEK_HOURS = STANDARD_DAY * WEEK_DAYS
+
+
+def week_hours() -> float:
+    """Hours a week owes, as set on Settings."""
+    return float(db.settings().get("week_hours", WEEK_HOURS))
+
 
 #: What a blank day shows. The break is derived, so changing either the hours
 #: or the day length keeps them agreeing.
@@ -132,7 +140,7 @@ def expected(records) -> float:
     weekend holiday changes nothing."""
     off = sum(1 for record in records
               if is_holiday(record) and is_weekday(record))
-    return max(0.0, STANDARD_DAY * (WEEK_DAYS - off))
+    return max(0.0, week_hours() - STANDARD_DAY * off)
 
 
 def totals(records) -> tuple[float, float, float]:

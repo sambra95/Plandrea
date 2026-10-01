@@ -9,9 +9,9 @@ import streamlit as st
 
 import db
 from palette import HOLIDAY_COLOUR
-from worktime import (STANDARD_DAY, WEEK_DAYS, WEEK_HOURS, clock, day_hours,
+from worktime import (STANDARD_DAY, WEEK_DAYS, clock, day_hours,
                       expected, field, is_holiday, is_weekday, totals,
-                      week_records, with_defaults)
+                      week_hours, week_records, with_defaults)
 
 #: A quiet grey for the labels and a lighter one for the guides.
 LABEL, GREY = "#6F6757", "#B4AC9C"
@@ -87,8 +87,8 @@ def _cards(week_start: date, saved: dict, filed: pd.DataFrame) -> None:
     owed = expected(counted)
 
     overtime_help = (f"Overtime, against the {owed:g} h this week owes"
-                     + (f" ({WEEK_HOURS:g} h, less any holiday)."
-                        if owed != WEEK_HOURS else "."))
+                     + (f" ({week_hours():g} h, less any holiday)."
+                        if owed != week_hours() else "."))
 
     # Only a weekday holiday is counted, because only that one takes hours off
     # what the week owes - which is the figure it sits beside.

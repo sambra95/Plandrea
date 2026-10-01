@@ -139,6 +139,10 @@ CREATE TABLE IF NOT EXISTS reviews (
     answer     TEXT,
     PRIMARY KEY (week_start, question)
 );
+CREATE TABLE IF NOT EXISTS settings (
+    name  TEXT PRIMARY KEY,
+    value TEXT
+);
 """
 
 
@@ -316,6 +320,7 @@ def restore(data: bytes) -> None:
         finally:
             source.close()
             target.close()
+    settings.clear()
 
 
 #: A task, meeting or paper is the same one if it is of the same kind, under the
@@ -334,6 +339,10 @@ _MERGES = (
         SELECT b.day, b.start_time, b.end_time, b.break_hours, b.comment, b.holiday
         FROM backup.days b
         WHERE NOT EXISTS (SELECT 1 FROM main.days d WHERE d.day = b.day)"""),
+    ("settings", """
+        INSERT INTO settings (name, value)
+        SELECT b.name, b.value FROM backup.settings b
+        WHERE NOT EXISTS (SELECT 1 FROM main.settings s WHERE s.name = b.name)"""),
     ("reviews", """
         INSERT INTO reviews (week_start, question, answer)
         SELECT b.week_start, b.question, b.answer FROM backup.reviews b
@@ -372,12 +381,18 @@ def merge(data: bytes) -> dict[str, int]:
         connection = sqlite3.connect(DB_PATH)
         try:
             connection.execute("ATTACH DATABASE ? AS backup", (path,))
+            # A history saved before settings existed has none to offer.
+            present = {row[0] for row in connection.execute(
+                "SELECT name FROM backup.sqlite_master WHERE type = 'table'")}
             with connection:                      # one transaction, or none of it
                 for table, statement in _MERGES:
+                    if table not in present:
+                        continue
                     added[table] = connection.execute(statement).rowcount
             connection.execute("DETACH DATABASE backup")
         finally:
             connection.close()
+    settings.clear()
     return {table: count for table, count in added.items() if count}
 
 
@@ -885,6 +900,24 @@ REVIEW_QUESTIONS = [
     "What blocked me?",
     "What did I learn this week?",
 ]
+
+
+# --- Settings ---------------------------------------------------------------
+
+@st.cache_data(show_spinner=False)
+def settings() -> dict[str, str]:
+    """Every setting saved, by name. Kept in the database so a backup carries
+    them. Cached, as the hours arithmetic reads them for every day it counts;
+    anything that writes them clears it."""
+    frame = _read("SELECT name, value FROM settings")
+    return dict(zip(frame["name"], frame["value"]))
+
+
+def save_setting(name: str, value) -> None:
+    _write("INSERT INTO settings (name, value) VALUES (:name, :value) "
+           "ON CONFLICT (name) DO UPDATE SET value = :value",
+           name=name, value=str(value))
+    settings.clear()
 
 
 def review(week_start: date) -> dict[str, str]:

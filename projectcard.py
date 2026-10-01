@@ -140,7 +140,7 @@ def _actions(project, prefix: str) -> None:
                         width="stretch"):
         st.markdown(f"**Archive {project.name}?**")
         st.caption("It and everything assigned to it turn grey, and its colour "
-                   "goes back into circulation. It moves to the Archive page, "
+                   "goes back into circulation. It moves to the Settings page, "
                    "and you can restore it from there.")
         if st.button("Yes, archive it", type="primary",
                      key=f"{prefix}archive:{project.id}"):
