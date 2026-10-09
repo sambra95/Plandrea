@@ -1037,7 +1037,7 @@ wheels = [
 ]
 
 [[package]]
-name = "planner"
+name = "plandrea"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

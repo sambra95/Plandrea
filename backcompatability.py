@@ -1,7 +1,8 @@
-"""Everything that brings a history written by an older planner up to the shape
-the current one reads. Each step looks for the old shape before it touches
-anything, so all of it is idempotent: it runs on every connect, again after a
-restore, and on the copy of a history being merged in.
+"""Everything that brings a history written by an older version of the app up
+to the shape the current one reads, and to where it looks for it. Each step
+looks for the old shape before it touches anything, so all of it is
+idempotent: it runs on every connect, again after a restore, and on the copy of
+a history being merged in.
 
 Nothing here imports db, which calls into it. The values written below are the
 ones the old shapes stood for, so they are spelled out rather than borrowed."""
@@ -9,8 +10,14 @@ ones the old shapes stood for, so they are spelled out rather than borrowed."""
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 from sqlalchemy import inspect, text
+
+#: What the app was called before it was Plandrea, and what its database file
+#: was named after it.
+OLD_NAME = "Planner"
+OLD_DATABASE = "planner.db"
 
 #: Tables that have changed name, old to new.
 RENAMED_TABLES = {"steps": "milestones"}
@@ -158,3 +165,26 @@ def combined_notes(*boxes: str | None) -> str | None:
                 body = body[2:]
             lines.append(f"{indent}- {body}")
     return "\n".join(lines) or None
+
+
+def move_database(old: Path, new: Path) -> None:
+    """A database still under the name it had before the app was renamed, moved
+    to the one it has now, SQLite's side files with it. Nothing moves if there is
+    already a database at the new name: that one is in use."""
+    if not old.is_file() or new.exists():
+        return
+    for suffix in ("", "-journal", "-wal", "-shm"):
+        side = old.with_name(old.name + suffix)
+        if side.exists():
+            side.rename(new.with_name(new.name + suffix))
+
+
+def move_support_folder(parent: Path, name: str, database: str) -> None:
+    """The packaged app's folder, from <parent>/Planner to <parent>/<name>, and
+    the database in it to `database`. The whole folder goes, so the copies a
+    migration left beside the database go with it. Runs before the new folder
+    is made, or there would always be one in the way."""
+    old, new = parent / OLD_NAME, parent / name
+    if old.is_dir() and not new.exists():
+        old.rename(new)
+    move_database(new / OLD_DATABASE, new / database)

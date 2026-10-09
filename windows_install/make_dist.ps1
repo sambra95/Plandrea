@@ -1,8 +1,8 @@
 <#
-Build the portable Windows folder for Planner.
+Build the portable Windows folder for Plandrea.
 
-Produces Planner\ carrying its own Python and every dependency, so the PC it
-lands on needs no Python, uv or git - download, unzip, double-click Planner.cmd.
+Produces Plandrea\ carrying its own Python and every dependency, so the PC it
+lands on needs no Python, uv or git - download, unzip, double-click Plandrea.cmd.
 The app opens in your default browser and quits once the last tab closes.
 
 Built for x64, on the machine running this script.
@@ -15,7 +15,7 @@ param([string]$Version = "1.0.0", [switch]$NoZip)
 $ErrorActionPreference = "Stop"
 $PyVersion = "3.12"
 $Root = (Resolve-Path "$PSScriptRoot\..").Path
-$App = "$Root\dist\Planner"
+$App = "$Root\dist\Plandrea"
 $Build = "$Root\build"
 Set-Location $Root
 
@@ -26,7 +26,7 @@ function Size($path) { "{0:N0} MB" -f ((Get-ChildItem $path -Recurse -File |
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw "uv not found: https://docs.astral.sh/uv/"
 }
-Write-Host "Building Planner $Version for Windows (x64)"
+Write-Host "Building Plandrea $Version for Windows (x64)"
 
 Step "[1/6] Skeleton"
 Remove-Item $App -Recurse -Force -ErrorAction SilentlyContinue
@@ -89,7 +89,7 @@ Step "[6/6] Launcher and packaging"
 @'
 @echo off
 start "" "%~dp0bin\python\pythonw.exe" "%~dp0bootstrap.py"
-'@ | Set-Content "$App\Planner.cmd" -Encoding ASCII
+'@ | Set-Content "$App\Plandrea.cmd" -Encoding ASCII
 
 # A folder has no Info.plist to carry the version, so it says so in a file.
 $Version | Set-Content "$App\VERSION" -Encoding ASCII
@@ -97,10 +97,10 @@ Write-Host "    $App ($(Size $App))"
 if (-not $NoZip) {
     # No version in the name: that keeps the GitHub
     # releases/latest/download/<name> link permanent.
-    $zip = "$Root\dist\Planner-windows-x64.zip"
+    $zip = "$Root\dist\Plandrea-windows-x64.zip"
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
     # bsdtar, shipped with Windows: far quicker than Compress-Archive here.
-    tar -a -c -f $zip -C "$Root\dist" Planner
+    tar -a -c -f $zip -C "$Root\dist" Plandrea
     Write-Host "    $zip ($('{0:N0} MB' -f ((Get-Item $zip).Length / 1MB)))"
 }
 Write-Host "`nDone."

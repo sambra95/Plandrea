@@ -1,4 +1,4 @@
-"""Planner - a personal task list, work diary and weekly review."""
+"""Plandrea - a personal task list, work diary and weekly review."""
 
 from datetime import date, timedelta
 from pathlib import Path
@@ -12,7 +12,7 @@ from palette import (BULLET_JS, CHECKBOX_CSS, INPUT_CSS, NAV_CSS,
 #: Beside this file, not the working directory: the packaged app starts elsewhere.
 ASSETS = Path(__file__).resolve().parent / "assets"
 
-st.set_page_config(page_title="Planner", page_icon=str(ASSETS / "logo.png"),
+st.set_page_config(page_title="Plandrea", page_icon=str(ASSETS / "logo.png"),
                    layout="wide")
 st.logo(str(ASSETS / "logo.svg"), size="large")
 

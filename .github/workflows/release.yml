@@ -36,10 +36,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$TAG" --title "Planner ${TAG#v}" --generate-notes \
+          gh release create "$TAG" --title "Plandrea ${TAG#v}" --generate-notes \
             || echo "Release exists; replacing its archives."
           gh release upload "$TAG" \
-            dist/Planner-macos-arm64.dmg dist/Planner-macos-arm64.tar.xz --clobber
+            dist/Plandrea-macos-arm64.dmg dist/Plandrea-macos-arm64.tar.xz --clobber
 
   windows:
     # After the Mac job, so the release it uploads to is already there.
@@ -64,4 +64,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$env:TAG" dist/Planner-windows-x64.zip --clobber
+        run: gh release upload "$env:TAG" dist/Plandrea-windows-x64.zip --clobber

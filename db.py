@@ -1,4 +1,4 @@
-"""Every read and write the planner makes: one SQLite file and the helpers the
+"""Every read and write Plandrea makes: one SQLite file and the helpers the
 pages call. Dates go in as ISO strings and come back as pandas datetimes."""
 
 from __future__ import annotations
@@ -18,15 +18,18 @@ import backcompatability
 from palette import ARCHIVED_COLOUR, as_hex, next_colour
 
 def _local_database() -> str:
-    """Where the SQLite file lives. The packaged app sets PLANNER_DB to point
+    """Where the SQLite file lives. The packaged app sets PLANDREA_DB to point
     outside the bundle; a checkout keeps it beside this file. Absolute either
     way, since an app launched from the Dock starts in "/"."""
-    override = os.environ.get("PLANNER_DB", "").strip()
+    override = os.environ.get("PLANDREA_DB", "").strip()
     if override:
         path = Path(override).expanduser()
         path.parent.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{path}"
-    return f"sqlite:///{Path(__file__).resolve().parent / 'planner.db'}"
+    here = Path(__file__).resolve().parent
+    backcompatability.move_database(here / backcompatability.OLD_DATABASE,
+                                    here / "plandrea.db")
+    return f"sqlite:///{here / 'plandrea.db'}"
 
 
 LOCAL_URL = _local_database()
@@ -235,7 +238,7 @@ def _unique_colours(connection) -> None:
 
 def _conn():
     """The connection (``st.connection`` caches it), with its tables in place."""
-    conn = st.connection("planner", type="sql", url=LOCAL_URL)
+    conn = st.connection("plandrea", type="sql", url=LOCAL_URL)
     _create_tables(conn, _SHAPE)
     return conn
 
@@ -253,7 +256,7 @@ def snapshot() -> bytes:
         target.close()
 
 
-#: What a file has to contain before it is treated as a Planner backup.
+#: What a file has to contain before it is treated as a Plandrea backup.
 _TABLES = ("tasks", "milestones", "days", "projects", "reviews")
 
 
@@ -278,7 +281,7 @@ def _uploaded(data: bytes):
             raise ValueError("That history is damaged and cannot be read.")
         missing = [name for name in _TABLES if name not in found]
         if missing:
-            raise ValueError("Not a Planner history: no " + ", ".join(missing))
+            raise ValueError("Not a Plandrea history: no " + ", ".join(missing))
         yield path
     finally:
         os.unlink(path)

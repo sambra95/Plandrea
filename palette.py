@@ -290,8 +290,8 @@ BULLET_JS = """<script>
 (() => {
   // st.html runs again on every rerun, so without this the listeners stack up
   // and one Enter inserts one bullet per rerun that has happened.
-  if (window.plannerBullets) return;
-  window.plannerBullets = true;
+  if (window.plandreaBullets) return;
+  window.plandreaBullets = true;
 
   const ours = (box) => box.tagName === "TEXTAREA";
   // What one level of indent is worth, and how to find the line a caret is on.

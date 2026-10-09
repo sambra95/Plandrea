@@ -1,8 +1,8 @@
-"""Entry point for the packaged Planner bundle, on macOS and on Windows.
+"""Entry point for the packaged Plandrea bundle, on macOS and on Windows.
 
 No console here, so everything is mirrored to a log file. Streamlit is started
 on a free port, the browser pointed at it, and the whole thing quits once the
-last tab closes. Run by Planner.app or Planner.cmd; a checkout runs streamlit
+last tab closes. Run by Plandrea.app or Plandrea.cmd; a checkout runs streamlit
 directly.
 """
 
@@ -18,9 +18,18 @@ import time
 import webbrowser
 from pathlib import Path
 
+import backcompatability
+
 RESOURCES = Path(__file__).resolve().parent
 START_TIMEOUT = 120
 WINDOWS = sys.platform == "win32"
+
+#: What the app is called, and the folders it keeps for itself are named.
+NAME = "Plandrea"
+
+#: Where the app is served under, so its name follows the port in the address
+#: bar. The same as server.baseUrlPath in .streamlit/config.toml.
+URL_PATH = "plandrea"
 
 #: Keeps a console window from flashing up behind the app's own, since the
 #: launcher starts it without one. Nothing to do anywhere else.
@@ -41,20 +50,23 @@ def _writable(root: Path) -> Path:
         return Path(tempfile.gettempdir())
 
 
-def _support_dir() -> Path:
-    """Somewhere writable for the database, never inside the bundle. Each
-    platform's own spot for what an app keeps for itself."""
+def _support_parent() -> Path:
+    """Each platform's own spot for what an app keeps for itself."""
     if WINDOWS:
-        home = Path(os.environ.get("LOCALAPPDATA") or Path.home())
-        return _writable(home / "Planner")
-    return _writable(Path.home() / "Library" / "Application Support" / "Planner")
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home())
+    return Path.home() / "Library" / "Application Support"
+
+
+def _support_dir() -> Path:
+    """Somewhere writable for the database, never inside the bundle."""
+    return _writable(_support_parent() / NAME)
 
 
 def _log_file() -> Path:
     """Beside the database on Windows; where a Mac keeps logs on a Mac."""
     root = (_support_dir() if WINDOWS
-            else _writable(Path.home() / "Library" / "Logs" / "Planner"))
-    return root / "planner.log"
+            else _writable(Path.home() / "Library" / "Logs" / NAME))
+    return root / "plandrea.log"
 
 
 class _Tee:
@@ -114,7 +126,7 @@ def _open_tabs(port: int) -> int | None:
 
 
 def _idle_timeout() -> float:
-    raw = os.environ.get("PLANNER_IDLE_TIMEOUT", "").strip()
+    raw = os.environ.get("PLANDREA_IDLE_TIMEOUT", "").strip()
     try:
         return max(0.0, float(raw)) if raw else float(IDLE_TIMEOUT)
     except ValueError:
@@ -125,11 +137,11 @@ def _wait_until_closed(port: int, server: subprocess.Popen) -> None:
     """Stay up while a tab is open, and for a grace period after the last one."""
     timeout = _idle_timeout()
     if not timeout:
-        print("[Planner] Idle shutdown off; quit this app by hand.")
+        print("[Plandrea] Idle shutdown off; quit this app by hand.")
         server.wait()
         return
 
-    print(f"[Planner] Quitting {timeout:.0f}s after the last tab closes.")
+    print(f"[Plandrea] Quitting {timeout:.0f}s after the last tab closes.")
     empty_since = None
     while server.poll() is None:
         time.sleep(IDLE_POLL)
@@ -142,7 +154,7 @@ def _wait_until_closed(port: int, server: subprocess.Popen) -> None:
             continue
         empty_since = empty_since or time.time()
         if time.time() - empty_since >= timeout:
-            print("[Planner] No tabs left; shutting down.")
+            print("[Plandrea] No tabs left; shutting down.")
             return
 
 
@@ -158,17 +170,23 @@ def main() -> int:
         if hasattr(signal, name):
             signal.signal(getattr(signal, name), _quit)
 
+    # Before anything makes the new folder, which would leave the old one where
+    # it is. Not when pointed at a database of its own: that one is not moved.
+    if not os.environ.get("PLANDREA_DB", "").strip():
+        backcompatability.move_support_folder(_support_parent(), NAME,
+                                              "plandrea.db")
+
     log = open(_log_file(), "a", encoding="utf-8")
     sys.stdout = _Tee(sys.stdout, log)
     sys.stderr = _Tee(sys.stderr, log)
-    print(f"\n[Planner] Starting {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"\n[Plandrea] Starting {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     env = dict(os.environ)
     # The bundle is signed, and a .pyc written inside it afterwards breaks the
     # seal.
     env.setdefault("PYTHONDONTWRITEBYTECODE", "1")
-    env.setdefault("PLANNER_DB", str(_support_dir() / "planner.db"))
-    print(f"[Planner] Data: {env['PLANNER_DB']}")
+    env.setdefault("PLANDREA_DB", str(_support_dir() / "plandrea.db"))
+    print(f"[Plandrea] Data: {env['PLANDREA_DB']}")
 
     port = _free_port()
     server = subprocess.Popen(
@@ -181,19 +199,20 @@ def main() -> int:
         deadline = time.time() + START_TIMEOUT
         while time.time() < deadline and not _serving(port):
             if server.poll() is not None:
-                print(f"[Planner] Server exited with {server.returncode}")
+                print(f"[Plandrea] Server exited with {server.returncode}")
                 return server.returncode or 1
             time.sleep(0.2)
         if not _serving(port):
-            print("[Planner] Server did not start in time.")
+            print("[Plandrea] Server did not start in time.")
             return 1
 
-        print(f"[Planner] Ready on http://127.0.0.1:{port}")
-        webbrowser.open(f"http://127.0.0.1:{port}")
+        address = f"http://127.0.0.1:{port}/{URL_PATH}"
+        print(f"[Plandrea] Ready on {address}")
+        webbrowser.open(address)
         _wait_until_closed(port, server)
         return 0
     except KeyboardInterrupt:
-        print("[Planner] Asked to quit.")
+        print("[Plandrea] Asked to quit.")
         return 0
     finally:
         if server.poll() is None:
@@ -202,7 +221,7 @@ def main() -> int:
                 server.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 server.kill()
-        print("[Planner] Stopped.")
+        print("[Plandrea] Stopped.")
         log.close()
 
 

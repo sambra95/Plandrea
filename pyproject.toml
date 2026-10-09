@@ -1,5 +1,5 @@
 [project]
-name = "planner"
+name = "plandrea"
 version = "0.1.0"
 description = "A personal task list, work diary and weekly review"
 readme = "README.md"

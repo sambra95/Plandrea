@@ -1,18 +1,18 @@
-# Planner
+# Plandrea
 
 A personal task list, work diary and weekly review. Runs on your Mac or PC,
 keeps everything in one SQLite file, and talks to nothing.
 
-[![Download Planner for macOS](https://img.shields.io/github/v/release/sambra95/planner?display_name=tag&style=for-the-badge&logo=apple&logoColor=white&label=Download%20for%20macOS&color=0b7285)](https://github.com/sambra95/planner/releases/latest/download/Planner-macos-arm64.dmg)
-[![Download Planner for Windows](https://img.shields.io/github/v/release/sambra95/planner?display_name=tag&style=for-the-badge&logo=windows&logoColor=white&label=Download%20for%20Windows&color=0b7285)](https://github.com/sambra95/planner/releases/latest/download/Planner-windows-x64.zip)
+[![Download Plandrea for macOS](https://img.shields.io/github/v/release/sambra95/plandrea?display_name=tag&style=for-the-badge&logo=apple&logoColor=white&label=Download%20for%20macOS&color=0b7285)](https://github.com/sambra95/plandrea/releases/latest/download/Plandrea-macos-arm64.dmg)
+[![Download Plandrea for Windows](https://img.shields.io/github/v/release/sambra95/plandrea?display_name=tag&style=for-the-badge&logo=windows&logoColor=white&label=Download%20for%20Windows&color=0b7285)](https://github.com/sambra95/plandrea/releases/latest/download/Plandrea-windows-x64.zip)
 
-**macOS** - open the disk image. A window appears with **Planner** beside the
+**macOS** - open the disk image. A window appears with **Plandrea** beside the
 Applications folder: drag one onto the other. The first launch needs
 right-click → Open, because the bundle is ad-hoc signed rather than notarised.
 Apple silicon only.
 
 **Windows** - unzip the folder wherever you want it and double-click
-**Planner.cmd** inside. Right-click it → *Show more options* → *Send to* →
+**Plandrea.cmd** inside. Right-click it → *Show more options* → *Send to* →
 *Desktop* for a shortcut. SmartScreen may ask once: *More info* → *Run anyway*.
 64-bit only.
 
@@ -68,11 +68,11 @@ it was finished, and unticking it puts it back.
 
 One SQLite file, and only on this machine:
 
-- packaged app, macOS - `~/Library/Application Support/Planner/planner.db`
-- packaged app, Windows - `%LOCALAPPDATA%\Planner\planner.db`
-- checkout - `planner.db` beside the code
+- packaged app, macOS - `~/Library/Application Support/Plandrea/plandrea.db`
+- packaged app, Windows - `%LOCALAPPDATA%\Plandrea\plandrea.db`
+- checkout - `plandrea.db` beside the code
 
-Either way it sits outside the app, so replacing the app leaves your planner
+Either way it sits outside the app, so replacing the app leaves your data
 alone. There is no copy anywhere else, so include it in whatever backs up your
 home directory. The log sits beside the database on Windows, and in
-`~/Library/Logs/Planner` on a Mac.
+`~/Library/Logs/Plandrea` on a Mac.

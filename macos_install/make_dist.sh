@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build the portable macOS bundle for Planner.
+# Build the portable macOS bundle for Plandrea.
 #
-# Produces Planner.app carrying its own Python and every dependency, so the Mac
+# Produces Plandrea.app carrying its own Python and every dependency, so the Mac
 # it lands on needs no Python, uv or git - download, unzip, double-click. The
 # app opens in your default browser and quits once the last tab closes.
 #
@@ -40,7 +40,7 @@ case "$(uname -m)" in
     *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
-APP="$ROOT/dist/Planner.app"
+APP="$ROOT/dist/Plandrea.app"
 RESOURCES="$APP/Contents/Resources"
 BUILD="$ROOT/build"
 
@@ -49,7 +49,7 @@ die()  { echo "ERROR: $*" >&2; exit 1; }
 
 command -v uv >/dev/null || die "uv not found: https://docs.astral.sh/uv/"
 
-echo "Building Planner $VERSION for macOS ($(uname -m))"
+echo "Building Plandrea $VERSION for macOS ($(uname -m))"
 
 step "[1/7] Skeleton"
 rm -rf "$APP"
@@ -81,7 +81,7 @@ cp ./*.py "$RESOURCES/"
 cp -R app_pages "$RESOURCES/app_pages"
 cp -R assets "$RESOURCES/assets"
 # CFBundleIconFile names a file at the root of Resources, not inside a folder.
-cp assets/Planner.icns "$RESOURCES/Planner.icns"
+cp assets/Plandrea.icns "$RESOURCES/Plandrea.icns"
 cp -R .streamlit "$RESOURCES/.streamlit"
 cp README.md "$RESOURCES/README.md"
 find "$RESOURCES" -name '__pycache__' -type d -prune -exec rm -rf {} +
@@ -111,21 +111,21 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Planner</string>
-    <key>CFBundleDisplayName</key><string>Planner</string>
-    <key>CFBundleIdentifier</key><string>local.planner</string>
+    <key>CFBundleName</key><string>Plandrea</string>
+    <key>CFBundleDisplayName</key><string>Plandrea</string>
+    <key>CFBundleIdentifier</key><string>local.plandrea</string>
     <key>CFBundleVersion</key><string>$VERSION</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleExecutable</key><string>Planner</string>
-    <key>CFBundleIconFile</key><string>Planner</string>
+    <key>CFBundleExecutable</key><string>Plandrea</string>
+    <key>CFBundleIconFile</key><string>Plandrea</string>
     <key>LSMinimumSystemVersion</key><string>11.0</string>
     <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 PLIST
 
-cat > "$APP/Contents/MacOS/Planner" <<'LAUNCH'
+cat > "$APP/Contents/MacOS/Plandrea" <<'LAUNCH'
 #!/bin/bash
 # Everything is found relative to this script: a bundle can be anywhere, and
 # double-clicked it starts in "/".
@@ -135,14 +135,14 @@ PYTHON="$RESOURCES/bin/python/bin/python3"
 if [ ! -x "$PYTHON" ]; then
     # No console here, so a message has to be shown rather than printed. The
     # usual cause is running it from inside the zip without unpacking first.
-    osascript -e 'display dialog "Planner is missing its Python. Unzip the app \
-before opening it." with title "Planner" buttons {"OK"} with icon stop' \
+    osascript -e 'display dialog "Plandrea is missing its Python. Unzip the app \
+before opening it." with title "Plandrea" buttons {"OK"} with icon stop' \
         >/dev/null 2>&1
     exit 1
 fi
 exec "$PYTHON" "$RESOURCES/bootstrap.py"
 LAUNCH
-chmod +x "$APP/Contents/MacOS/Planner"
+chmod +x "$APP/Contents/MacOS/Plandrea"
 
 # Signing comes last: stripping removes a signature, and arm64 macOS kills
 # unsigned code on load. Each binary needs its own, not just the bundle.
@@ -159,16 +159,16 @@ echo "    $APP ($SIZE)"
 if [[ $MAKE_DMG == 1 ]]; then
     # A disk image, so opening it offers the app beside an Applications alias to
     # drag it onto. A zip cannot do that: it just unpacks wherever it lands.
-    DMG="$ROOT/dist/Planner-macos-$(uname -m).dmg"
+    DMG="$ROOT/dist/Plandrea-macos-$(uname -m).dmg"
     STAGE="$BUILD/dmg"
     RW="$BUILD/rw.dmg"
     rm -rf "$STAGE"; mkdir -p "$STAGE"
-    cp -R "$APP" "$STAGE/Planner.app"
+    cp -R "$APP" "$STAGE/Plandrea.app"
     ln -s /Applications "$STAGE/Applications"
     rm -f "$DMG" "$RW"
 
     # Built writable first so Finder can lay the window out, then compressed.
-    hdiutil create -volname "Planner" -srcfolder "$STAGE" -ov \
+    hdiutil create -volname "Plandrea" -srcfolder "$STAGE" -ov \
         -format UDRW -quiet "$RW"
     MOUNT="$(hdiutil attach "$RW" -nobrowse -readwrite -noverify \
              | awk '/\/Volumes\//{print $3; exit}')"
@@ -179,7 +179,7 @@ if [[ $MAKE_DMG == 1 ]]; then
     # image, just without the positions.
     osascript >/dev/null 2>&1 <<'LAYOUT' || echo "    (no Finder: window left unarranged)"
 tell application "Finder"
-    tell disk "Planner"
+    tell disk "Plandrea"
         open
         set current view of container window to icon view
         set toolbar visible of container window to false
@@ -188,7 +188,7 @@ tell application "Finder"
         set opts to the icon view options of container window
         set arrangement of opts to not arranged
         set icon size of opts to 128
-        set position of item "Planner.app" of container window to {150, 200}
+        set position of item "Plandrea.app" of container window to {150, 200}
         set position of item "Applications" of container window to {450, 200}
         close
         open
@@ -208,16 +208,16 @@ LAYOUT
     echo "    $DMG ($(du -sh "$DMG" | cut -f1))"
 fi
 if [[ $MAKE_ZIP == 1 ]]; then
-    ZIP="$ROOT/dist/Planner-macos-$(uname -m).zip"
+    ZIP="$ROOT/dist/Plandrea-macos-$(uname -m).zip"
     rm -f "$ZIP"
-    ( cd "$ROOT/dist" && ditto -c -k --keepParent "Planner.app" "$ZIP" )
+    ( cd "$ROOT/dist" && ditto -c -k --keepParent "Plandrea.app" "$ZIP" )
     echo "    $ZIP ($(du -sh "$ZIP" | cut -f1))"
 fi
 if [[ $MAKE_XZ == 1 ]]; then
     # Roughly half the zip, at the cost of needing tar to open it.
-    XZ="$ROOT/dist/Planner-macos-$(uname -m).tar.xz"
+    XZ="$ROOT/dist/Plandrea-macos-$(uname -m).tar.xz"
     rm -f "$XZ"
-    ( cd "$ROOT/dist" && tar -cJf "$XZ" "Planner.app" )
+    ( cd "$ROOT/dist" && tar -cJf "$XZ" "Plandrea.app" )
     echo "    $XZ ($(du -sh "$XZ" | cut -f1))"
 fi
 echo ""

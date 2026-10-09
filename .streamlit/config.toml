@@ -18,6 +18,11 @@ headingFontSizes = ["30px", "22px", "18px", "16px", "14px", "13px"]
 headingFontWeights = [600, 600, 600, 500, 500, 500]
 linkUnderline = false
 
+[server]
+# Served under the app's name, so the address bar says what it is rather than
+# just a port. bootstrap.py opens the same path.
+baseUrlPath = "plandrea"
+
 [client]
 # No Deploy button or developer menu: this app is not deployed anywhere.
 toolbarMode = "viewer"

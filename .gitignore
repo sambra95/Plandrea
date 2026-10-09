@@ -1,5 +1,6 @@
 .streamlit/secrets.toml
 planner.db
+plandrea.db
 __pycache__/
 .venv/
 

@@ -149,7 +149,7 @@ if outcome:
 # One row: the button sizes to its label and the uploader takes the rest.
 with st.container(horizontal=True, vertical_alignment="center"):
     st.download_button("Backup history", data=db.snapshot,
-                       file_name=f"planner_backup_{date.today():%d%m%y}.db",
+                       file_name=f"plandrea_backup_{date.today():%d%m%y}.db",
                        mime="application/vnd.sqlite3", icon=":material/download:",
                        help="Your whole history and settings, as one file.")
     restoring = st.file_uploader("Restore history", type=["db"],
