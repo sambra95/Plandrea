@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import inspect, text
 
+import backcompatability
 from palette import ARCHIVED_COLOUR, as_hex, next_colour
 
 def _local_database() -> str:
@@ -42,17 +43,11 @@ TASK = "task"
 MEETING = "meeting"
 PAPER = "paper"
 
-#: Renamed columns: old name to new.
-_RENAMED_COLUMNS = {"days": {"focus_hours": "unfocused_hours",
-                             "unfocused_hours": "break_hours"},
-                    "tasks": {"minutes": "notes"}}
-
 #: Columns added per table, applied on connect. Fixed here in the source, never
 #: taken from user input.
 _ADDED_COLUMNS = {
     "tasks": {"project_id": "INTEGER", "description": "TEXT",
               "kind": "TEXT NOT NULL DEFAULT 'task'", "notes": "TEXT",
-              "goals": "TEXT", "actions": "TEXT",
               "start_time": "TEXT", "end_time": "TEXT", "tags": "TEXT",
               "link": "TEXT", "code": "TEXT"},
     "days": {"holiday": "INTEGER NOT NULL DEFAULT 0"},
@@ -100,7 +95,7 @@ _MILESTONE_COUNTS = (
 #: list, so a task, meeting or paper arrives in the same shape wherever it is
 #: read and the editor can open any of them.
 _ITEM_COLUMNS = ("SELECT t.id, t.code, t.title, t.day, t.done_on, t.kind, "
-                 "t.description, t.goals, t.notes, t.actions, t.tags, t.link, "
+                 "t.description, t.notes, t.tags, t.link, "
                  "t.start_time, t.end_time, "
                  "COALESCE(t.done_on, t.day) AS on_day, "
                  "p.name AS project, p.colour AS colour, " + _MILESTONE_COUNTS)
@@ -133,9 +128,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     project_id  INTEGER,
     description TEXT,
     kind        TEXT NOT NULL DEFAULT 'task',
-    goals       TEXT,
     notes       TEXT,
-    actions     TEXT,
     start_time  TEXT,
     end_time    TEXT,
     tags        TEXT,
@@ -172,31 +165,11 @@ CREATE TABLE IF NOT EXISTS settings (
 """
 
 
-#: Tables that have changed name, old to new.
-_RENAMED_TABLES = {"steps": "milestones"}
-
-
-def _rename_tables(connection) -> None:
-    """Take a database written before a table was renamed to the name it goes by
-    now. This runs before the schema: CREATE TABLE IF NOT EXISTS would otherwise
-    make an empty table under the new name and leave every row behind under the
-    old one. The index goes too - SQLite carries it over under its old name, and
-    the schema makes it again under the new one. Idempotent."""
-    present = set(inspect(connection.engine).get_table_names())
-    for old_name, new_name in _RENAMED_TABLES.items():
-        if old_name in present and new_name not in present:
-            with connection.session as session:
-                session.execute(
-                    text(f"ALTER TABLE {old_name} RENAME TO {new_name}"))
-                session.execute(text(f"DROP INDEX IF EXISTS {old_name}_by_task"))
-                session.commit()
-
-
 #: Everything deciding what the database should look like. _create_tables takes
 #: it only as a cache key: Streamlit keys on the function's own source, so a
 #: session reloaded under a new migration would never run it.
-_SHAPE = str((_SCHEMA, _RENAMED_TABLES, _RENAMED_COLUMNS, _ADDED_COLUMNS,
-              _CODES))
+_SHAPE = str((_SCHEMA, _ADDED_COLUMNS, _CODES,
+              Path(backcompatability.__file__).read_text(encoding="utf-8")))
 
 
 @st.cache_resource(show_spinner=False)
@@ -204,7 +177,7 @@ def _create_tables(_connection, shape: str) -> None:
     """Create anything missing, once per session and per `shape`. The connection
     is underscored so Streamlit caches on the call rather than trying to hash
     it; `shape` is unused here and is the cache key itself."""
-    _rename_tables(_connection)
+    backcompatability.rename_tables(_connection)
     with _connection.session as session:
         for statement in _SCHEMA.strip().split(";"):
             if statement.strip():
@@ -214,23 +187,13 @@ def _create_tables(_connection, shape: str) -> None:
 
 
 def _catch_up(connection) -> None:
-    """Bring an older database up to the current schema. Renames run before
-    additions so a renamed column is not re-added empty. Idempotent."""
-    def columns(table: str) -> set[str]:
-        return {column["name"]
-                for column in inspect(connection.engine).get_columns(table)}
-
-    for table, renames in _RENAMED_COLUMNS.items():
-        for old_name, new_name in renames.items():
-            present = columns(table)
-            if old_name in present and new_name not in present:
-                with connection.session as session:
-                    session.execute(text(f"ALTER TABLE {table} RENAME COLUMN "
-                                         f"{old_name} TO {new_name}"))
-                    session.commit()
+    """Bring an older database up to the current schema: renames, then the
+    columns added since, then whatever is still in an old shape. Idempotent."""
+    backcompatability.rename_columns(connection)
 
     for table, wanted in _ADDED_COLUMNS.items():
-        present = columns(table)
+        present = {column["name"]
+                   for column in inspect(connection.engine).get_columns(table)}
         missing = [(name, kind) for name, kind in wanted.items()
                    if name not in present]
         if missing:
@@ -240,25 +203,7 @@ def _catch_up(connection) -> None:
                         text(f"ALTER TABLE {table} ADD COLUMN {name} {kind}"))
                 session.commit()
 
-    if "is_meeting" in columns("tasks"):
-        with connection.session as session:
-            session.execute(text("UPDATE tasks SET kind = :meeting "
-                                 "WHERE is_meeting = 1 AND kind = :task"),
-                            {"meeting": MEETING, "task": TASK})
-            session.execute(text("ALTER TABLE tasks DROP COLUMN is_meeting"))
-            session.commit()
-
-    # A milestone was ticked or not; now it is ticked on a day. Which day is
-    # nowhere on record, so the task's own is the closest thing to it.
-    if "done" in columns("milestones"):
-        with connection.session as session:
-            session.execute(text(
-                "UPDATE milestones SET done_on = COALESCE("
-                "  (SELECT t.done_on FROM tasks t WHERE t.id = task_id),"
-                "  (SELECT t.day FROM tasks t WHERE t.id = task_id),"
-                "  DATE('now')) WHERE done = 1 AND done_on IS NULL"))
-            session.execute(text("ALTER TABLE milestones DROP COLUMN done"))
-            session.commit()
+    backcompatability.upgrade(connection)
 
     with connection.session as session:
         for statement in _CODES:
@@ -386,12 +331,11 @@ _MERGES = (
                             AND r.question = b.question)"""),
     ("tasks", f"""
         INSERT INTO tasks (title, day, done_on, created_on, project_id, description,
-                           kind, goals, notes, actions, start_time, end_time,
-                           code)
+                           kind, notes, start_time, end_time, code)
         SELECT b.title, b.day, b.done_on, b.created_on,
                (SELECT p.id FROM main.projects p JOIN backup.projects bp
                  ON bp.name = p.name WHERE bp.id = b.project_id),
-               b.description, b.kind, b.goals, b.notes, b.actions,
+               b.description, b.kind, b.notes,
                b.start_time, b.end_time,
                NULLIF(b.code, (SELECT t.code FROM main.tasks t
                                WHERE t.code = b.code))
@@ -422,13 +366,7 @@ def merge(data: bytes) -> dict[str, int]:
             # A history saved before settings existed has none to offer.
             present = {row[0] for row in connection.execute(
                 "SELECT name FROM backup.sqlite_master WHERE type = 'table'")}
-            # Nor codes, if older still. The backup is a copy made for this
-            # merge, so giving it the column alters nothing of yours.
-            for table in _CODE_PREFIX:
-                if "code" not in {row[1] for row in connection.execute(
-                        f"PRAGMA backup.table_info({table})")}:
-                    connection.execute(
-                        f"ALTER TABLE backup.{table} ADD COLUMN code TEXT")
+            backcompatability.upgrade_backup(connection, tuple(_CODE_PREFIX))
             with connection:                      # one transaction, or none of it
                 for table, statement in _MERGES:
                     if table not in present:
@@ -594,9 +532,7 @@ def meetings_matching(query: str) -> pd.DataFrame:
     return _read(_ITEMS
                  + "WHERE t.kind = :kind AND ("
                  "LOWER(t.title) LIKE :like "
-                 "OR LOWER(COALESCE(t.goals, '')) LIKE :like "
                  "OR LOWER(COALESCE(t.notes, '')) LIKE :like "
-                 "OR LOWER(COALESCE(t.actions, '')) LIKE :like "
                  "OR LOWER(COALESCE(p.name, '')) LIKE :like) "
                  "ORDER BY COALESCE(t.done_on, t.day) DESC, t.id DESC",
                  kind=MEETING, like=f"%{query.strip().lower()}%")
@@ -616,11 +552,6 @@ def add_meeting(title: str, day: date | None) -> int | None:
     """Create a meeting, normally on a day. Kept off the open task list; made on
     the Meetings page."""
     return _add_dated(title, day, MEETING)
-
-
-#: The written sections. A meeting uses all three, a paper only notes. Named
-#: here so `set_task_note` never takes a column name from user input.
-NOTE_FIELDS = ("goals", "notes", "actions")
 
 
 def set_meeting_times(task_id: int, start: time | None,
@@ -678,11 +609,9 @@ def as_bullets(text: str) -> str:
     return "\n".join(kept)
 
 
-def set_task_note(task_id: int, field: str, text: str) -> None:
-    """Set one written section of a meeting or paper. Blank means none."""
-    if field not in NOTE_FIELDS:
-        raise ValueError(f"not a note field: {field!r}")
-    _write(f"UPDATE tasks SET {field} = :text WHERE id = :id",
+def set_task_note(task_id: int, text: str) -> None:
+    """Set the notes of a meeting or paper. Blank means none."""
+    _write("UPDATE tasks SET notes = :text WHERE id = :id",
            id=task_id, text=as_bullets(text) or None)
 
 
@@ -955,7 +884,7 @@ REVIEW_QUESTIONS = [
 _EVERYTHING = """
     SELECT t.kind AS kind, t.id AS ref, t.code AS code, t.title AS title,
            COALESCE(t.done_on, t.day) AS on_day, t.done_on AS done_on,
-           CONCAT_WS(' · ', t.description, t.goals, t.notes, t.actions, t.tags,
+           CONCAT_WS(' · ', t.description, t.notes, t.tags,
                      t.link, p.name,
                      (SELECT GROUP_CONCAT(m.title, ' · ') FROM milestones m
                       WHERE m.task_id = t.id)) AS body

@@ -46,8 +46,8 @@ tab.
   them finished. A task still open when its day passes
   comes off that day and goes back on the list.
 - **Meetings** - a month calendar. Each meeting sits on its day in its project's
-  colour, with optional start and finish times; click one to write it up under
-  Goals, Notes and Action points. Taking a meeting off its day calls it off.
+  colour, with optional start and finish times; click one to write it up in
+  its Notes. Taking a meeting off its day calls it off.
 - **Papers** - added here and kept off the task list. A paper starts with no day
   and has no milestones, just notes and keyword tags. Tick it off once read and it
   goes to the archive, where the tags make it findable.

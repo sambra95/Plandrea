@@ -87,9 +87,8 @@ def _set_link(prefix: str, task_id: int) -> None:
     st.session_state[key] = db.set_task_link(task_id, st.session_state[key])
 
 
-def _set_note(prefix: str, task_id: int, field: str) -> None:
-    db.set_task_note(task_id, field,
-                     st.session_state[f"{prefix}d{field}:{task_id}"])
+def _set_note(prefix: str, task_id: int) -> None:
+    db.set_task_note(task_id, st.session_state[f"{prefix}dnotes:{task_id}"])
 
 
 def _add_milestone(prefix: str, task_id: int) -> None:
@@ -128,9 +127,8 @@ def _milestone_box(count: int):
         height=_MILESTONES_SHOWN * _MILESTONE_ROW + _MILESTONE_ROW // 2)
 
 
-#: What a meeting is written up under. A paper just has the one box.
-_MEETING_SECTIONS = (("goals", "Goals"), ("notes", "Notes"),
-                     ("actions", "Action points"))
+#: How tall a meeting's write-up is: the one box holds what three used to.
+_MEETING_NOTES_HEIGHT = 300
 
 def _draft_milestone(key: str) -> None:
     """Hold a milestone for a task that does not exist yet. It is written when
@@ -284,12 +282,11 @@ def _editor(item, prefix: str, names: list[str], day: date) -> None:
         to_at.time_input("To", clock(item.end_time), step=900,
                          key=f"{prefix}dend:{item.id}", on_change=_set_times,
                          args=(prefix, item.id))
-        for field, label in _MEETING_SECTIONS:
-            st.text_area(label, key=f"{prefix}d{field}:{item.id}", height=130,
-                         value="" if pd.isna(getattr(item, field))
-                         else getattr(item, field),
-                         placeholder=f"{label}…", on_change=_set_note,
-                         args=(prefix, item.id, field))
+        st.text_area("Notes", key=f"{prefix}dnotes:{item.id}",
+                     height=_MEETING_NOTES_HEIGHT,
+                     value="" if pd.isna(item.notes) else item.notes,
+                     placeholder="Notes…", on_change=_set_note,
+                     args=(prefix, item.id))
     else:
         tagged, linked, opens = st.columns([3, 3, 1.4],
                                            vertical_alignment="bottom")
@@ -312,7 +309,7 @@ def _editor(item, prefix: str, names: list[str], day: date) -> None:
                           icon=":material/open_in_new:", disabled=not url)
         st.text_area("Notes", key=f"{prefix}dnotes:{item.id}", height=180,
                      value="" if pd.isna(item.notes) else item.notes,
-                     on_change=_set_note, args=(prefix, item.id, "notes"))
+                     on_change=_set_note, args=(prefix, item.id))
 
     if item.kind == db.MEETING:
         # A meeting only exists on its day, so taking it off the day deletes it.
@@ -409,21 +406,20 @@ def _new(kind: str, names: list[str], day: date | None) -> None:
                    st.text_area("Notes", key=key + "about", height=130,
                                 placeholder="Add a note…"))
 
-    times, notes = (None, None), {}
+    times, notes = (None, None), ""
     if kind == db.MEETING:
         times = (from_at.time_input("From", value=None, step=900,
                                     key=key + "start"),
                  to_at.time_input("To", value=None, step=900, key=key + "end"))
-        for field, label in _MEETING_SECTIONS:
-            notes[field] = st.text_area(label, height=130, key=key + field,
-                                        placeholder=f"{label}…")
+        notes = st.text_area("Notes", height=_MEETING_NOTES_HEIGHT,
+                             key=key + "notes", placeholder="Notes…")
     elif kind == db.PAPER:
         tagged, linked = st.columns(2)
         tags = tagged.text_input("Tags", key=key + "tags",
                                  placeholder="Keywords, separated by commas…")
         link = linked.text_input("Link", key=key + "link",
                                  placeholder="https://…")
-        notes["notes"] = st.text_area("Notes", height=180, key=key + "notes")
+        notes = st.text_area("Notes", height=180, key=key + "notes")
     elif kind == db.TASK:
         st.markdown("**Milestones**")
         drafted = st.session_state.setdefault(key + "milestones", [])
@@ -462,9 +458,8 @@ def _new(kind: str, names: list[str], day: date | None) -> None:
         db.set_task_tags(new_id, tags)
     if kind == db.PAPER and link.strip():
         db.set_task_link(new_id, link)
-    for field, written in notes.items():
-        if written.strip():
-            db.set_task_note(new_id, field, written)
+    if notes.strip():
+        db.set_task_note(new_id, notes)
     for milestone in st.session_state.get(key + "milestones", []):
         db.add_milestone(new_id, milestone)
     st.rerun(scope="app")
