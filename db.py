@@ -566,14 +566,31 @@ def set_meeting_times(task_id: int, start: time | None,
            end=end.strftime("%H:%M") if end else None)
 
 
-def set_task_tags(task_id: int, tags: str) -> str:
+def split_tags(line) -> list[str]:
+    """A stored tag line as its tags, in order, blanks and repeats dropped.
+    Takes a missing line (None or NaN) as no tags."""
+    if not isinstance(line, str):
+        return []
+    return list(dict.fromkeys(
+        word.strip() for word in line.split(",") if word.strip()))
+
+
+def paper_tags() -> list[str]:
+    """Every tag any paper carries, A to Z, for a tag picker to offer."""
+    lines = _read("SELECT tags FROM tasks WHERE kind = :kind "
+                  "AND tags IS NOT NULL", kind=PAPER)["tags"]
+    return sorted({tag for line in lines for tag in split_tags(line)},
+                  key=str.lower)
+
+
+def set_task_tags(task_id: int, tags: list[str]) -> list[str]:
     """Keywords for a paper, kept as one comma-separated line so a search can
-    match them with the rest of its text. Blanks and repeats are dropped, and
-    the tidied line is returned so the box it came from can show it."""
-    cleaned = ", ".join(dict.fromkeys(
-        word.strip() for word in tags.split(",") if word.strip()))
+    match them with the rest of its text. A typed tag with commas in it counts
+    as several; blanks and repeats are dropped, and the tidied tags are
+    returned so the picker they came from can show them."""
+    cleaned = split_tags(", ".join(tags))
     _write("UPDATE tasks SET tags = :tags WHERE id = :id",
-           tags=cleaned or None, id=task_id)
+           tags=", ".join(cleaned) or None, id=task_id)
     return cleaned
 
 

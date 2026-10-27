@@ -79,7 +79,10 @@ def _set_times(prefix: str, task_id: int) -> None:
 
 def _set_tags(prefix: str, task_id: int) -> None:
     key = f"{prefix}dtags:{task_id}"
-    st.session_state[key] = db.set_task_tags(task_id, st.session_state[key])
+    cleaned = db.set_task_tags(task_id, st.session_state[key])
+    # Only when tidying changed something, e.g. "a, b" typed as one tag.
+    if cleaned != st.session_state[key]:
+        st.session_state[key] = cleaned
 
 
 def _set_link(prefix: str, task_id: int) -> None:
@@ -290,11 +293,15 @@ def _editor(item, prefix: str, names: list[str], day: date) -> None:
     else:
         tagged, linked, opens = st.columns([3, 3, 1.4],
                                            vertical_alignment="bottom")
-        tagged.text_input("Tags", key=f"{prefix}dtags:{item.id}",
-                          value="" if pd.isna(getattr(item, "tags", None))
-                          else item.tags,
-                          placeholder="Keywords, separated by commas…",
-                          on_change=_set_tags, args=(prefix, item.id))
+        # Any tag a paper already has, or a new one typed in. Seeded from the
+        # paper only on first showing; after that the picker holds its own.
+        tags_key = f"{prefix}dtags:{item.id}"
+        tagged.multiselect("Tags", db.paper_tags(), key=tags_key,
+                           default=None if tags_key in st.session_state
+                           else db.split_tags(getattr(item, "tags", None)),
+                           accept_new_options=True, select_all=False,
+                           placeholder="Pick a tag or type a new one…",
+                           on_change=_set_tags, args=(prefix, item.id))
         link_key = f"{prefix}dlink:{item.id}"
         linked.text_input("Link", key=link_key,
                           value="" if pd.isna(getattr(item, "link", None))
@@ -415,8 +422,9 @@ def _new(kind: str, names: list[str], day: date | None) -> None:
                              key=key + "notes", placeholder="Notes…")
     elif kind == db.PAPER:
         tagged, linked = st.columns(2)
-        tags = tagged.text_input("Tags", key=key + "tags",
-                                 placeholder="Keywords, separated by commas…")
+        tags = tagged.multiselect("Tags", db.paper_tags(), key=key + "tags",
+                                  accept_new_options=True, select_all=False,
+                                  placeholder="Pick a tag or type a new one…")
         link = linked.text_input("Link", key=key + "link",
                                  placeholder="https://…")
         notes = st.text_area("Notes", height=180, key=key + "notes")
@@ -454,7 +462,7 @@ def _new(kind: str, names: list[str], day: date | None) -> None:
         db.set_task_notes(new_id, description)
     if kind == db.MEETING and any(times):
         db.set_meeting_times(new_id, *times)
-    if kind == db.PAPER and tags.strip():
+    if kind == db.PAPER and tags:
         db.set_task_tags(new_id, tags)
     if kind == db.PAPER and link.strip():
         db.set_task_link(new_id, link)
