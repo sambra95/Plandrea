@@ -115,6 +115,10 @@ NAV_HEIGHT = "72px"
 #: Between tabs, so neighbouring highlights do not run together.
 NAV_GAP = "10px"
 
+#: The logo in the bar. Streamlit's largest size is 32px, small beside the
+#: tabs; this fills most of the bar's height without touching its edges.
+NAV_LOGO_HEIGHT = "56px"
+
 NAV_CSS = f"""<style>
 .stAppHeader {{
     /* Tall enough to hold a tab: the bar is 53px by default and the tabs are
@@ -137,6 +141,7 @@ NAV_CSS = f"""<style>
     padding: 14px 4px !important;
 }}
 .stAppHeader [data-testid="stTopNavLink"] span {{ font-size: 1.2rem !important; }}
+[data-testid="stHeaderLogo"] {{ height: {NAV_LOGO_HEIGHT}; }}
 /* Clicking the logo goes to the home page by default and no parameter turns
    that off. Away from the home page Streamlit wraps it in a button; the image
    itself is never the target. */
