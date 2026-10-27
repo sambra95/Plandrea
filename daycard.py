@@ -13,8 +13,8 @@ import pandas as pd
 import streamlit as st
 
 import db
-from palette import (NO_PROJECT, chip_css, done_css, select_css, strike,
-                     style_block)
+from palette import (NO_PROJECT, chip_css, done_css, holiday_css, select_css,
+                     strike, style_block)
 from worktime import (DEFAULT_END, DEFAULT_START, clock, default_break,
                       WEEK_DAYS, field, is_holiday, net, or_default,
                       span, when)
@@ -492,7 +492,12 @@ def render_day(day: date, record, tasks: pd.DataFrame,
     whose name was clicked and this day, so the editor knows where it opened
     from, or None."""
     opened = None
-    with st.container(border=True):
+    off =(f"{prefix}day-off:{day}"
+           if st.session_state.get(f"{prefix}holiday:{day}", is_holiday(record))
+           else None)
+    if off:
+        rules.append(holiday_css(off))
+    with st.container(border=True, key=off):
         header = st.columns([3, 2], vertical_alignment="center")
         # %-d is glibc-only and blows up on Windows; take the day number
         # straight off the date so the format string stays portable.
