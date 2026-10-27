@@ -3,7 +3,9 @@ retired, and the history itself. The hours are kept in the history, so a
 backup carries them too. A week is opened and reviewed on My Week, which any
 of them can be picked on."""
 
+import plistlib
 from datetime import date, time
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -21,6 +23,22 @@ SHOWN = projectcard.SHOWN + ("Projects", "Day notes", "Reviews")
 #: What each kind of match is called in the results.
 KIND_NAMES = {db.TASK: "Task", db.MEETING: "Meeting", db.PAPER: "Paper",
               "project": "Project", "day": "Day", "review": "Review"}
+
+#: Where the app's code sits: Contents/Resources in the Mac bundle, the
+#: unzipped folder on Windows, the repository when run from source.
+APP_DIR = Path(__file__).resolve().parent.parent
+
+
+def _version() -> str | None:
+    """The version this copy was built as, or None when run from source. The
+    Mac bundle keeps it in its Info.plist, the Windows folder in a VERSION file."""
+    plist = APP_DIR.parent / "Info.plist"
+    if plist.exists():
+        return plistlib.loads(plist.read_bytes()).get("CFBundleShortVersionString")
+    stamp = APP_DIR / "VERSION"
+    if stamp.exists():
+        return stamp.read_text().strip()
+    return None
 
 
 def _average(clocks: list[time]) -> str:
@@ -185,3 +203,7 @@ if restoring is not None:
                 # The message has to outlive the rerun that redraws the page.
                 st.session_state["restored"] = outcome
                 st.rerun()
+
+st.divider()
+version = _version()
+st.caption(f"Plandrea {version}" if version else "Plandrea, run from source")
