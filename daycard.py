@@ -42,6 +42,12 @@ def _toggle_milestone(key: str, milestone_id: int, day: date) -> None:
     db.set_milestone_done(milestone_id, day if st.session_state[key] else None)
 
 
+def _set_milestone_date(key: str, milestone_id: int) -> None:
+    """Move a finished milestone to the day picked for it."""
+    if st.session_state[key]:
+        db.set_milestone_done(milestone_id, st.session_state[key])
+
+
 def _clear_day(task_id: int) -> None:
     """Take something off this day without deleting it."""
     db.set_task_day(task_id, None)
@@ -264,8 +270,17 @@ def _editor(item, prefix: str, names: list[str], day: date) -> None:
                     # Open ones leave the badge's room empty, so every name
                     # box ends in the same place.
                     done = pd.notna(milestone.done_on)
-                    st.markdown(_done_badge(milestone.done_on) if done else "",
-                                width=_BADGE_WIDTH)
+                    if done:
+                        # The date it was finished can be set by hand.
+                        on = f"{prefix}dondatemilestone:{milestone.id}"
+                        st.date_input("Completed", value=milestone.done_on.date(),
+                                      key=on, format="DD/MM/YYYY",
+                                      label_visibility="collapsed",
+                                      width=_BADGE_WIDTH,
+                                      on_change=_set_milestone_date,
+                                      args=(on, milestone.id))
+                    else:
+                        st.markdown("", width=_BADGE_WIDTH)
                     if done:
                         finished.append(done_css(name))
                     st.button("", icon=":material/close:",
