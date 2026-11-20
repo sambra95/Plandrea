@@ -135,12 +135,11 @@ def _actions(project, prefix: str) -> None:
         return
 
     row = st.columns(2)
-    # Archiving takes the colour off everything assigned to it, so it asks
-    # first, the way calling off a meeting does.
+    # Archiving asks first, the way calling off a meeting does.
     with row[0].popover("Archive this project", icon=":material/archive:",
                         width="stretch"):
         st.markdown(f"**Archive {project.name}?**")
-        st.caption("It and everything assigned to it turn grey, and its colour "
+        st.caption("Everything assigned to it keeps its colour, which also "
                    "goes back into circulation. It moves to the Settings page, "
                    "and you can restore it from there.")
         if st.button("Yes, archive it", type="primary",
