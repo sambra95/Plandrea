@@ -52,7 +52,7 @@ _ADDED_COLUMNS = {
     "tasks": {"project_id": "INTEGER", "description": "TEXT",
               "kind": "TEXT NOT NULL DEFAULT 'task'", "notes": "TEXT",
               "start_time": "TEXT", "end_time": "TEXT", "tags": "TEXT",
-              "link": "TEXT", "code": "TEXT"},
+              "link": "TEXT", "code": "TEXT", "colour": "TEXT"},
     "days": {"holiday": "INTEGER NOT NULL DEFAULT 0"},
     "milestones": {"done_on": "DATE"},
     "projects": {"archived": "INTEGER NOT NULL DEFAULT 0",
@@ -101,7 +101,8 @@ _ITEM_COLUMNS = ("SELECT t.id, t.code, t.title, t.day, t.done_on, t.kind, "
                  "t.description, t.notes, t.tags, t.link, "
                  "t.start_time, t.end_time, "
                  "COALESCE(t.done_on, t.day) AS on_day, "
-                 "p.name AS project, p.colour AS colour, " + _MILESTONE_COUNTS)
+                 "p.name AS project, COALESCE(t.colour, p.colour) AS colour, "
+                 + _MILESTONE_COUNTS)
 
 #: What a project's search box matches on, lowered here so the box can filter
 #: its own rows without going back to the database.
@@ -474,7 +475,8 @@ def set_task_day(task_id: int, day: date | None) -> None:
 
 def set_task_project(task_id: int, project: str | None) -> None:
     _write("UPDATE tasks SET project_id = "
-           "(SELECT id FROM projects WHERE name = :project) WHERE id = :id",
+           "(SELECT id FROM projects WHERE name = :project), colour = NULL "
+           "WHERE id = :id",
            id=task_id, project=project)
 
 
@@ -693,10 +695,15 @@ def set_project_dates(project_id: int, start: date | None,
 
 
 def archive_project(project_id: int) -> None:
-    """Retire a project, freeing its colour. Its tasks and papers keep it and
-    turn grey with it."""
-    _write("UPDATE projects SET archived = 1, colour = :grey WHERE id = :id",
-           id=project_id, grey=ARCHIVED_COLOUR)
+    """Retire a project, freeing its colour. Its items keep the colour."""
+    with _conn().session as session:
+        session.execute(text("UPDATE tasks SET colour = (SELECT colour FROM "
+                             "projects WHERE id = :id) WHERE project_id = :id"),
+                        {"id": project_id})
+        session.execute(text("UPDATE projects SET archived = 1, colour = :grey "
+                             "WHERE id = :id"),
+                        {"id": project_id, "grey": ARCHIVED_COLOUR})
+        session.commit()
 
 
 def restore_project(project_id: int) -> None:
@@ -708,6 +715,8 @@ def restore_project(project_id: int) -> None:
             text("UPDATE projects SET archived = 0, colour = :colour "
                  "WHERE id = :id"),
             {"id": project_id, "colour": next_colour(used)})
+        session.execute(text("UPDATE tasks SET colour = NULL "
+                             "WHERE project_id = :id"), {"id": project_id})
         session.commit()
 
 
@@ -744,7 +753,7 @@ def delete_project(project_id: int) -> None:
     """Remove a project. Its tasks are released, not deleted: they keep their
     history and simply show as having no project."""
     with _conn().session as session:
-        session.execute(text("UPDATE tasks SET project_id = NULL "
+        session.execute(text("UPDATE tasks SET project_id = NULL, colour = NULL "
                              "WHERE project_id = :id"), {"id": project_id})
         session.execute(text("DELETE FROM projects WHERE id = :id"),
                         {"id": project_id})
@@ -817,7 +826,7 @@ def milestones_in(first: date, last: date) -> pd.DataFrame:
         "WHERE COALESCE(t.done_on, t.day) BETWEEN :first AND :last "
         "   OR s.done_on BETWEEN :first AND :last "
         "ORDER BY s.task_id, s.id",
-        extra=", t.title AS task, p.colour AS colour",
+        extra=", t.title AS task, COALESCE(t.colour, p.colour) AS colour",
         first=first.isoformat(), last=last.isoformat())
 
 
