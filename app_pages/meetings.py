@@ -31,6 +31,11 @@ MONTH_ROW_CSS = f"""<style>
 .{css_class("month_now")} button p {{ font-size: {LABEL_SIZE}; }}
 </style>"""
 
+#: Today's cell, outlined and washed in the theme's accent so it stands out.
+ACCENT = st.get_option("theme.primaryColor")
+TODAY_CSS = (f'.{css_class("cal-today")} {{ border: 3px solid {ACCENT} !important; '
+             f'background-color: {wash(ACCENT)} !important; }}')
+
 
 def _first_of_month(day: date) -> date:
     return day.replace(day=1)
@@ -100,12 +105,13 @@ for week in grid:
         # A day with anything on it says how many, so a busy day reads at a
         # glance and the ones past the fold are not left unannounced.
         tally = f" :gray-badge[{len(on_day)}]" if len(on_day) else ""
-        # Only a day off is keyed: the rest need no rule, and keying every cell
-        # would put a class on the whole grid to style seven of them.
-        off = f"cal-holiday-{day}" if day in holidays else None
+        # Only today and a day off are keyed: the rest need no rule, and keying
+        # every cell would put a class on the whole grid to style a few of them.
+        off = day in holidays
+        key = "cal-today" if day == today else f"cal-holiday-{day}" if off else None
         if off:
-            rules.append(holiday_css(off))
-        with column, st.container(border=True, height=CELL_HEIGHT, key=off):
+            rules.append(holiday_css(key))
+        with column, st.container(border=True, height=CELL_HEIGHT, key=key):
             # Named as well as washed: the colour alone would be the only thing
             # telling a day off from a quiet one.
             mark = " :green-badge[Holiday]" if off else ""
@@ -130,8 +136,8 @@ in_month = meetings[(meetings["on_day"] >= pd.Timestamp(month_start))
 if in_month.empty:
     st.caption("No meetings this month.")
 
-if rules:
-    st.html(style_block(rules))
+rules.append(TODAY_CSS)
+st.html(style_block(rules))
 
 if opened is not None:
     daycard.open_item(opened, "cal:", names)
