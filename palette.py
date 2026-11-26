@@ -266,6 +266,21 @@ def select_css(key: str, colour) -> str:
             f'color: {tint} !important; border-color: transparent !important; }}')
 
 
+#: How tall a page's main search box is, and how big its text: bigger than an
+#: ordinary box, since it is the way into everything below it.
+SEARCH_HEIGHT = "3.25rem"
+SEARCH_FONT_SIZE = "1.15rem"
+
+
+def search_css(key: str) -> str:
+    """CSS drawing one `st.text_input(key=...)` as a page's main search box:
+    taller than an ordinary box, with bigger text."""
+    return (f'.{css_class(key)} [data-testid="stTextInputRootElement"] '
+            f'{{ height: {SEARCH_HEIGHT}; }} '
+            f'.{css_class(key)} input {{ font-size: {SEARCH_FONT_SIZE}; '
+            f'padding-left: 0.9rem; }}')
+
+
 def done_css(key: str) -> str:
     """CSS washing one `st.text_input(key=...)` green, for something finished
     whose name is still there to edit."""

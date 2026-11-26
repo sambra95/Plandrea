@@ -531,18 +531,6 @@ def papers_read(query: str = "") -> pd.DataFrame:
                  kind=PAPER, like=f"%{query.strip().lower()}%")
 
 
-def meetings_matching(query: str) -> pd.DataFrame:
-    """Meetings whose title, write-up or project contain `query`, newest
-    first. LOWER on both sides makes the match case-insensitive."""
-    return _read(_ITEMS
-                 + "WHERE t.kind = :kind AND ("
-                 "LOWER(t.title) LIKE :like "
-                 "OR LOWER(COALESCE(t.notes, '')) LIKE :like "
-                 "OR LOWER(COALESCE(p.name, '')) LIKE :like) "
-                 "ORDER BY COALESCE(t.done_on, t.day) DESC, t.id DESC",
-                 kind=MEETING, like=f"%{query.strip().lower()}%")
-
-
 def move_meeting(meeting_id: int, day: date) -> None:
     """Move a meeting, carrying its done_on: filing is by COALESCE(done_on,
     day), so leaving it behind would pin the meeting to its old day. A day gone

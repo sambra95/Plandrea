@@ -9,15 +9,9 @@ import streamlit as st
 
 import daycard
 import db
-from palette import (NO_PROJECT, badge, chip_css, chip_date_css, css_class,
+from palette import (NO_PROJECT, badge, chip_css, chip_date_css, search_css,
                      strike, style_block)
 
-
-#: The database search, drawn larger than an ordinary text box.
-SEARCH_CSS = (f'.{css_class("paper_search")} [data-testid="stTextInputRootElement"] '
-              f'{{ height: 3.25rem; }} '
-              f'.{css_class("paper_search")} input {{ font-size: 1.15rem; '
-              f'padding-left: 0.9rem; }}')
 
 today = date.today()
 
@@ -70,7 +64,7 @@ st.text_input("Search papers", key="paper_search",
               label_visibility="collapsed")
 # The search is the way into the whole database, so it is drawn larger than
 # an ordinary box: taller, with bigger text.
-rules.append(SEARCH_CSS)
+rules.append(search_css("paper_search"))
 
 
 def _read_line(paper) -> None:

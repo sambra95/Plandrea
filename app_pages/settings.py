@@ -13,7 +13,7 @@ import streamlit as st
 import daycard
 import db
 import projectcard
-from palette import NO_PROJECT
+from palette import NO_PROJECT, search_css, style_block
 from worktime import (clock, field, is_holiday, monday_of, totals,
                       week_hours, week_records)
 
@@ -64,6 +64,8 @@ def _excerpt(body, query: str, around: int = 50) -> str:
 
 
 st.markdown("**Search**")
+# Drawn larger than an ordinary box, as the papers search is.
+st.html(style_block([search_css("everything_search")]))
 # The search box takes what the filters beside it leave, as on a project card.
 with st.container(horizontal=True, vertical_alignment="center"):
     query = st.text_input("Search everything", key="everything_search",
