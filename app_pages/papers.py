@@ -9,8 +9,15 @@ import streamlit as st
 
 import daycard
 import db
-from palette import NO_PROJECT, chip_css, chip_date_css, strike, style_block
+from palette import (NO_PROJECT, badge, chip_css, chip_date_css, css_class,
+                     strike, style_block)
 
+
+#: The database search, drawn larger than an ordinary text box.
+SEARCH_CSS = (f'.{css_class("paper_search")} [data-testid="stTextInputRootElement"] '
+              f'{{ height: 3.25rem; }} '
+              f'.{css_class("paper_search")} input {{ font-size: 1.15rem; '
+              f'padding-left: 0.9rem; }}')
 
 today = date.today()
 
@@ -24,6 +31,7 @@ def _mark_read(paper_id: int) -> None:
 papers = db.unread_papers()
 names = [NO_PROJECT] + list(db.projects()["name"])
 
+st.header("Reading List")
 daycard.add_button(db.PAPER, names)
 
 rules = []
@@ -53,41 +61,61 @@ for paper in papers.itertuples():
                    on_click=db.delete_task, args=(paper.id,))
 
 st.divider()
-st.markdown("**Read**")
-query = st.text_input("Search papers", key="paper_search",
-                      placeholder="Search titles, tags, notes and projects…",
-                      label_visibility="collapsed")
+# Read before the box is drawn, so the count above it can say what it holds.
+query = st.session_state.get("paper_search", "")
 read = db.papers_read(query)
+st.header(f"Paper Database :gray-badge[{len(read)}{' matching' if query else ''}]")
+st.text_input("Search papers", key="paper_search",
+              placeholder="Search titles, tags, notes and projects…",
+              label_visibility="collapsed")
+# The search is the way into the whole database, so it is drawn larger than
+# an ordinary box: taller, with bigger text.
+rules.append(SEARCH_CSS)
+
+
+def _read_line(paper) -> None:
+    """One read paper: its chip in its project's colour with the day it was
+    read at the far right, as the reading list above draws its days; then its
+    tags; then a way out to the paper itself where it has a link."""
+    global opened
+    key = f"papers:read:{paper.id}"
+    rules.append(chip_css(key, paper.colour))
+    rules.append(chip_date_css(key, paper.done_on))
+    line = st.columns([8, 1.7, 0.5], vertical_alignment="center")
+    if line[0].button(paper.title, key=key, width="stretch"):
+        opened = paper
+    tags = db.split_tags(paper.tags)
+    if tags:
+        # A bracket in a tag would close the badge early.
+        line[1].markdown(" ".join(
+            f":gray-badge[{tag.replace('[', '(').replace(']', ')')}]"
+            for tag in tags))
+    link = None if pd.isna(paper.link) else str(paper.link).strip()
+    if link:
+        line[2].link_button("", link, icon=":material/open_in_new:",
+                            help="View paper", width="stretch")
+
 
 if read.empty:
     st.caption("No papers match." if query else "No papers read yet.")
 else:
-    # A table stays one height however long the list gets; the notes, which are
-    # as long as they are, open on the row you pick.
-    listing = pd.DataFrame({"Read": read["done_on"], "Paper": read["title"],
-                            "Tags": read["tags"].fillna(""),
-                            "Project": read["project"].fillna("-"),
-                            "Notes": read["notes"].fillna("")})
-    picked = st.dataframe(
-        listing, hide_index=True, width="stretch", height=280, key="paper_hits",
-        on_select="rerun", selection_mode="single-row",
-        column_config={
-            "Read": st.column_config.DateColumn(format="ddd DD MMM YYYY"),
-            "Paper": st.column_config.TextColumn(width="large"),
-            "Tags": st.column_config.TextColumn(width="small"),
-            "Notes": st.column_config.TextColumn(width="medium"),
-        })
-    rows = picked.selection.rows
-    if not rows:
-        # Nothing picked, so a later pick of the same row should open again.
-        st.session_state.pop("dismissed_item", None)
-    elif opened is None:
-        # One row, as a namedtuple: a dialog is a fragment and is handed its
-        # arguments back on every rerun, and a Series does not survive that.
-        chosen = next(read.iloc[[rows[0]]].itertuples())
-        # The selection outlives the dialog, so without this it reopens at once.
-        if chosen.id != st.session_state.get("dismissed_item"):
-            opened = chosen
+    # Grouped by project, each headed by its own coloured badge. A project
+    # comes in the order of its latest read, so what is being read now sits at
+    # the top; papers with no project come last. Within a project, newest
+    # first. A long list scrolls in its own box, so the page stays one height
+    # however much has been read; a short one takes only the room it needs.
+    owned = read[read["project"].notna()]
+    loose = read[read["project"].isna()]
+    with st.container(border=True, height=460 if len(read) > 8 else "content"):
+        for name, in_project in owned.groupby("project", sort=False):
+            colour = in_project["colour"].iloc[0]
+            st.markdown(badge(name, colour))
+            for paper in in_project.itertuples():
+                _read_line(paper)
+        if not loose.empty:
+            st.markdown("**No project**")
+            for paper in loose.itertuples():
+                _read_line(paper)
 
 # One style block for every chip, each in its project's colour.
 if rules:
