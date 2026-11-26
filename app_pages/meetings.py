@@ -37,6 +37,21 @@ TODAY_CSS = (f'.{css_class("cal-today")} {{ border: 3px solid {ACCENT} !importan
              f'background-color: {wash(ACCENT)} !important; }}')
 
 
+#: A day from the month either side: faded, outlined in dashes and greyed, so
+#: the month in view stands clear of the days that only pad out its weeks.
+OTHER_MONTH_OPACITY = 0.45
+OTHER_MONTH_FILL = "rgba(42, 35, 21, 0.05)"
+
+
+def _other_month_css(key: str, washed: bool) -> str:
+    """CSS fading one keyed cell that lies outside the month in view. A day off
+    keeps its holiday wash, so only an unwashed cell is greyed."""
+    cell = f".{css_class(key)}"
+    fill = "" if washed else f"background-color: {OTHER_MONTH_FILL} !important; "
+    return (f"{cell} {{ opacity: {OTHER_MONTH_OPACITY}; "
+            f"border-style: dashed !important; {fill}}}")
+
+
 def _first_of_month(day: date) -> date:
     return day.replace(day=1)
 
@@ -105,12 +120,17 @@ for week in grid:
         # A day with anything on it says how many, so a busy day reads at a
         # glance and the ones past the fold are not left unannounced.
         tally = f" :gray-badge[{len(on_day)}]" if len(on_day) else ""
-        # Only today and a day off are keyed: the rest need no rule, and keying
-        # every cell would put a class on the whole grid to style a few of them.
+        # Only today, a day off and a day from another month are keyed: the
+        # rest need no rule, and keying every cell would put a class on the
+        # whole grid to style a few of them.
         off = day in holidays
-        key = "cal-today" if day == today else f"cal-holiday-{day}" if off else None
+        other = day.month != month_start.month
+        key = ("cal-today" if day == today else f"cal-holiday-{day}" if off
+               else f"cal-other-{day}" if other else None)
         if off:
             rules.append(holiday_css(key))
+        if other:
+            rules.append(_other_month_css(key, washed=off))
         with column, st.container(border=True, height=CELL_HEIGHT, key=key):
             # Named as well as washed: the colour alone would be the only thing
             # telling a day off from a quiet one.
@@ -120,7 +140,8 @@ for week in grid:
             elif day.month == month_start.month:
                 st.markdown(f"**{day.day}**{tally}{mark}")
             else:
-                st.caption(f"{day.day}")
+                # Named with its month, so it cannot be taken for a day of this one.
+                st.caption(f"{day.day} {day:%b}{tally}")
             for meeting in on_day.itertuples():
                 # Buttons cannot render a colour directive in their label, so the
                 # button itself is painted in the project's colour instead.
