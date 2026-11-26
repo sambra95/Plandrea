@@ -28,10 +28,10 @@ daycard.add_button(db.TASK, names)
 rules = []
 opened = None
 
-if tasks.empty:
-    st.caption("Nothing open.")
 
-for task in tasks.itertuples():
+def _task_line(task) -> None:
+    """One task's row: its chip, done box, "Do today" and delete."""
+    global opened
     own = milestones[milestones["task_id"] == task.id]
     tally = f" ({int(own['done'].sum())}/{len(own)})" if len(own) else ""
     rules.append(chip_css(f"tasks:open:{task.id}", task.colour))
@@ -51,6 +51,25 @@ for task in tasks.itertuples():
                    on_click=db.set_task_day, args=(task.id, today))
     line[3].button("", icon=":material/delete:", key=f"drop:{task.id}",
                    on_click=db.delete_task, args=(task.id,))
+
+
+# Those with no day first; those already put on a day get a list of their own
+# underneath, so what still needs planning is never buried among them.
+unassigned = tasks[tasks["day"].isna()]
+assigned = tasks[tasks["day"].notna()]
+
+if tasks.empty:
+    st.caption("Nothing open.")
+elif unassigned.empty:
+    st.caption("Every open task has a day.")
+
+for task in unassigned.itertuples():
+    _task_line(task)
+
+if not assigned.empty:
+    st.divider()
+    for task in assigned.itertuples():
+        _task_line(task)
 
 # One style block for every chip, each in its project's colour.
 if rules:
