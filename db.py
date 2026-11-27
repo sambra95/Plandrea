@@ -52,7 +52,8 @@ _ADDED_COLUMNS = {
     "tasks": {"project_id": "INTEGER", "description": "TEXT",
               "kind": "TEXT NOT NULL DEFAULT 'task'", "notes": "TEXT",
               "start_time": "TEXT", "end_time": "TEXT", "tags": "TEXT",
-              "link": "TEXT", "code": "TEXT", "colour": "TEXT"},
+              "link": "TEXT", "code": "TEXT", "colour": "TEXT",
+              "s2_id": "TEXT"},
     "days": {"holiday": "INTEGER NOT NULL DEFAULT 0"},
     "milestones": {"done_on": "DATE"},
     "projects": {"archived": "INTEGER NOT NULL DEFAULT 0",
@@ -529,6 +530,28 @@ def papers_read(query: str = "") -> pd.DataFrame:
                  "OR LOWER(COALESCE(p.name, '')) LIKE :like) "
                  "ORDER BY t.done_on DESC, t.id DESC",
                  kind=PAPER, like=f"%{query.strip().lower()}%")
+
+
+def paper_seeds() -> pd.DataFrame:
+    """Every paper, read or not, with its project, the day it was read and its
+    Semantic Scholar id: NULL
+    until it is looked up, blank when the lookup found nothing."""
+    return _read("SELECT t.id, t.title, t.s2_id, t.done_on, p.name AS project"
+                 + _FROM_TASKS + "WHERE t.kind = :kind", kind=PAPER)
+
+
+def set_paper_s2_id(task_id: int, s2_id: str) -> None:
+    _write("UPDATE tasks SET s2_id = :s2_id WHERE id = :id",
+           id=task_id, s2_id=s2_id)
+
+
+def dismissed_papers() -> list[str]:
+    """Semantic Scholar ids of suggestions turned down, kept as a setting."""
+    return [i for i in settings().get("dismissed_papers", "").split(",") if i]
+
+
+def dismiss_paper(s2_id: str) -> None:
+    save_setting("dismissed_papers", ",".join(dismissed_papers() + [s2_id]))
 
 
 def move_meeting(meeting_id: int, day: date) -> None:
